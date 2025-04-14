@@ -48,7 +48,6 @@ public class GeniusSDKPricer : MonoBehaviour
 
     private IEnumerator UpdatePriceLoop()
     {
-        yield return new WaitForSeconds(3);
         while (true)
         {
             UpdatePriceDisplay();

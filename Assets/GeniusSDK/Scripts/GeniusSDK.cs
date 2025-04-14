@@ -43,6 +43,7 @@ public class GeniusSDKWrapper : MonoBehaviour
     private static extern ulong GeniusSDKGetBalance();
 
     private bool isReady = false;
+    private bool isShutdown = false;
     [SerializeField] private string address = "0xcatcatcat";
     [SerializeField][Range(0f, 1f)] private float cut = 0.7f;
     [SerializeField] private float tokenValue = 1.0f;
@@ -202,6 +203,8 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     void OnApplicationQuit()
     {
+        if (isShutdown) return;
+        isShutdown = true;
         Debug.unityLogger.logEnabled = true;
         Debug.Log("Shutting down Genius SDK on application quit.");
         GeniusSDKShutdown();
@@ -210,6 +213,8 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     void OnDestroy()
     {
+        if (isShutdown) return;
+        isShutdown = true;
         Debug.unityLogger.logEnabled = true;
         Debug.Log("Shutting down Genius SDK on destroy.");
         GeniusSDKShutdown();
