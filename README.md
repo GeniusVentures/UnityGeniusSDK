@@ -46,7 +46,23 @@ Attach `GeniusSDKWrapper` to any persistent GameObject (e.g. your game manager).
 
 ---
 
+### 🔧 SDK Configuration
+
+The `GeniusSDKWrapper` component exposes several important parameters in the Unity Inspector:
+
+| Field         | Description                                                                 |
+|---------------|-----------------------------------------------------------------------------|
+| **Address**   | The developer’s wallet address (where GNUS or child tokens will be sent).   |
+| **Cut**       | A float from 0 to 1 representing the percentage of Minions earned that the developer keeps. For example, `0.7` means 70% goes to the dev, 30% to the user. |
+| **Token Value** | The value of the child token relative to 1 GNUS. For example, `1.0` means 1 token = 1 GNUS, `0.1` means 10 tokens = 1 GNUS. |
+| **Token ID**  | The ID of the child token being used for payouts and pricing.                |
+
+These values are written to `dev_config.json` at runtime and used to initialize the native GeniusSDK.
+
+---
+
 ### 2. Display Minion Balance
+
 
 Attach `GeniusSDKBalanceDisplay` to a `Text` or `TextMeshProUGUI` element.
 
