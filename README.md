@@ -24,11 +24,17 @@
    `Assets → Import Package → Custom Package…`
 3. Select the downloaded file and click **Import**
 
-### 🧑‍💻 Option B: Clone into your project
+### 🧑‍💻 Option B: Clone the Entire Project (for SDK Development or Contribution)
 
 ```bash
-git clone https://github.com/your-username/GeniusSDK.git
+git clone https://github.com/GeniusVentures/UnityGeniusSDK.git
 ```
+
+Then open the cloned folder **directly in Unity Hub** as its own project.
+
+> ⚠️ This repo includes full Unity project files (`ProjectSettings/`).  
+> Do **not** copy it into an existing Unity project. You can copy the Assets/GeniusSDK directory into your existing project.
+
 
 Make sure to run:
 
