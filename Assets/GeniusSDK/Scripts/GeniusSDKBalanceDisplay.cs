@@ -24,8 +24,12 @@ public class GeniusSDKBalanceDisplay : MonoBehaviour
         }
     }
 
-    private void Start()
+    private IEnumerator Start()
     {
+        while (!GeniusSDKWrapper.Instance.IsReady)
+            yield return null;
+
+        ForceUpdateBalance();
         if (uiText != null || tmpText != null)
         {
             StartCoroutine(UpdateBalanceLoop());

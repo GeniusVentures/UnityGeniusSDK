@@ -53,6 +53,11 @@ public class GeniusSDKPurchase : MonoBehaviour
     private void HandlePurchase()
     {
         Debug.unityLogger.logEnabled = true;
+        if(!GeniusSDKWrapper.Instance.IsReady)
+        {
+            Debug.LogWarning("No SDK Initialized");
+            return;
+        }
         if (pricer == null || pricer.lastPrice <= 0)
         {
             Debug.LogWarning("Cannot calculate price: Pricer not set or GNUS price unavailable.");

@@ -42,6 +42,13 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern ulong GeniusSDKGetBalance();
 
+    private bool isReady = false;
+    [SerializeField] private string address = "0xcatcatcat";
+    [SerializeField][Range(0f, 1f)] private float cut = 0.7f;
+    [SerializeField] private float tokenValue = 1.0f;
+    [SerializeField] private int tokenID = 1;
+
+
     private static GeniusSDKWrapper instance;
     public static GeniusSDKWrapper Instance
     {
@@ -80,13 +87,20 @@ public class GeniusSDKWrapper : MonoBehaviour
         //{
         Debug.Log("dev_config.json not found. Creating a new one...");
         // JSON data to write
-        string jsonData = @"{
-            ""Address"": ""0xcatcatcat"",
-            ""Cut"": ""0.7"",
-            ""TokenValue"": 1.0,
-            ""TokenID"": 1,
-            ""WriteDirectory"": """"
-        }";
+        string jsonData = $@"{{
+    ""Address"": ""{address}"",
+    ""Cut"": ""{cut}"",
+    ""TokenValue"": {tokenValue:F5},
+    ""TokenID"": {tokenID},
+    ""WriteDirectory"": """"
+}}";
+        //string jsonData = @"{
+        //    ""Address"": ""0xcatcatcat"",
+        //    ""Cut"": ""0.7"",
+        //    ""TokenValue"": 1.0,
+        //    ""TokenID"": 1,
+        //    ""WriteDirectory"": """"
+        //}";
         try
         {
             File.WriteAllText(destinationPath, jsonData);
@@ -122,6 +136,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             IntPtr resultPtr = GeniusSDKInit(pathBuilder, key, 1, 1, 42001);
             string result = Marshal.PtrToStringAnsi(resultPtr);
             Debug.Log($"GeniusSDKInit returned: {result}");
+            isReady = true;
         }
         catch (Exception ex)
         {
@@ -182,15 +197,22 @@ public class GeniusSDKWrapper : MonoBehaviour
         }
     }
 
+    public bool IsReady => isReady;
+
+
     void OnApplicationQuit()
     {
+        Debug.unityLogger.logEnabled = true;
         Debug.Log("Shutting down Genius SDK on application quit.");
         GeniusSDKShutdown();
+        Debug.unityLogger.logEnabled = false;
     }
 
     void OnDestroy()
     {
+        Debug.unityLogger.logEnabled = true;
         Debug.Log("Shutting down Genius SDK on destroy.");
         GeniusSDKShutdown();
+        Debug.unityLogger.logEnabled = false;
     }
 }

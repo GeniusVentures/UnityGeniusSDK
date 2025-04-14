@@ -30,11 +30,14 @@ public class GeniusSDKPricer : MonoBehaviour
     }
 
 
-    private void Start()
+    private IEnumerator Start()
     {
+        while (!GeniusSDKWrapper.Instance.IsReady)
+            yield return null;
+        ForceUpdatePrice();
         //if (priceText != null)
         //{
-            StartCoroutine(UpdatePriceLoop());
+        StartCoroutine(UpdatePriceLoop());
         //}
     }
 
