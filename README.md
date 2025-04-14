@@ -27,7 +27,7 @@
 ### 🧑‍💻 Option B: Clone into your project
 
 ```bash
-git clone https://github.com/your-username/GeniusSDK.git
+git clone https://github.com/GeniusVentures/UnityGeniusSDK.git
 ```
 
 Make sure to run:
