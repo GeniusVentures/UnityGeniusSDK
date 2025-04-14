@@ -168,6 +168,7 @@ public class GeniusSDKWrapper : MonoBehaviour
     // Public method to get current balance
     public ulong GetBalance()
     {
+        Debug.unityLogger.logEnabled = true;
         Debug.Log("Getting current balance");
         try
         {
@@ -180,10 +181,12 @@ public class GeniusSDKWrapper : MonoBehaviour
             Debug.LogError($"Error in GeniusSDKGetBalance: {ex.Message}");
             return 0;
         }
+        Debug.unityLogger.logEnabled = false;
     }
 
     public double GetGNUSPrice()
     {
+        Debug.unityLogger.logEnabled = true;
         Debug.Log("Getting current GNUS price");
         try
         {
@@ -196,6 +199,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             Debug.LogError($"Error in GetGNUSPrice: {ex.Message}");
             return 0;
         }
+        Debug.unityLogger.logEnabled = false;
     }
 
     public bool IsReady => isReady;

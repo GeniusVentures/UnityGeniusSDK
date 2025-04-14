@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/GeniusSDK/Scenes/GeniusSDKInit.unity
+    guid: 164f6a4be1498d84f8c5c539830da34c
+  - enabled: 1
     path: Assets/GeniusSDK/Scenes/GeniusStoreDemo.unity
     guid: 35192bdc8c844c94a84e7ad108d12c20
   m_configObjects: {}

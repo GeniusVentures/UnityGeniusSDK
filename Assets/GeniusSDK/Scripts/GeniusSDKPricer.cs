@@ -34,6 +34,7 @@ public class GeniusSDKPricer : MonoBehaviour
     {
         while (!GeniusSDKWrapper.Instance.IsReady)
             yield return null;
+
         ForceUpdatePrice();
         //if (priceText != null)
         //{
