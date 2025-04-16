@@ -125,6 +125,25 @@ Attach `GeniusSDKPurchase` to a Unity UI `Button`.
   - `GeniusSDK.framework` for iOS
   - `GeniusSDK.bundle` for macOS
   - `GeniusSDK.dll` for Windows
+---
+
+## 📱 Android Permissions
+
+If you are targeting Android, the SDK uses low-level networking (e.g., libp2p and IPFS) which requires socket access. Make sure to add the following permissions to your `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+```
+
+To add these in Unity:
+
+1. Go to **Edit → Project Settings → Player → Android tab**
+2. Under **Publishing Settings**, enable **Custom Main Manifest**
+3. Unity will create `Assets/Plugins/Android/AndroidManifest.xml`
+4. Add the permissions inside the `<manifest>` tag, before `<application>`
+
+These are required for libp2p communication and IPFS peer discovery to function correctly on Android devices.
 
 ---
 
