@@ -19,6 +19,13 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
+    private static extern IntPtr GeniusSDKInitSecure(StringBuilder path, string dev_config, StringBuilder key, int autodht, int process, int baseport);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
     private static extern void GeniusSDKShutdown();
 
 #if UNITY_IOS
@@ -134,7 +141,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         Debug.Log("Try to init SDK");
         try
         {
-            IntPtr resultPtr = GeniusSDKInit(pathBuilder, key, 1, 1, 42001);
+            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, 1, 1, 42001);
             string result = Marshal.PtrToStringAnsi(resultPtr);
             Debug.Log($"GeniusSDKInit returned: {result}");
             isReady = true;
