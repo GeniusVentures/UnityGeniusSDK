@@ -98,7 +98,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         string jsonData = $@"{{
     ""Address"": ""{address}"",
     ""Cut"": ""{cut}"",
-    ""TokenValue"": ""{tokenValue:F5}"",
+    ""TokenValue"": ""{tokenValue}"",
     ""TokenID"": ""{tokenID}"",
     ""WriteDirectory"": """"
 }}";
