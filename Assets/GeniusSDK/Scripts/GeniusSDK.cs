@@ -52,8 +52,8 @@ public class GeniusSDKWrapper : MonoBehaviour
     private bool isReady = false;
     private bool isShutdown = false;
     [SerializeField] private string address = "0xcatcatcat";
-    [SerializeField][Range(0f, 1f)] private string cut = "0.7";
-    [SerializeField] private string tokenValue = "1.0";
+    [SerializeField][Range(0f, 1f)] private float cut = 0.7f;
+    [SerializeField] private float tokenValue = 1.0f;
     [SerializeField] private int tokenID = 1;
 
 
@@ -98,7 +98,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         string jsonData = $@"{{
     ""Address"": ""{address}"",
     ""Cut"": ""{cut}"",
-    ""TokenValue"": ""{tokenValue}"",
+    ""TokenValue"": ""{tokenValue:F5}"",
     ""TokenID"": ""{tokenID}"",
     ""WriteDirectory"": """"
 }}";
