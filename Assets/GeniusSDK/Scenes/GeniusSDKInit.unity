@@ -641,9 +641,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   address: 0xcatcatcat
-  cut: 
+  cut: 0
   tokenValue: 0.7
-  tokenID: 2
+  tokenID: 0000000000000000000000000000000100000000000000000000000000000002
 --- !u!114 &1924405715
 MonoBehaviour:
   m_ObjectHideFlags: 0

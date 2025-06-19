@@ -1,25 +1,65 @@
 using System;
+using System.Collections;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.IO;
 using UnityEngine;
-using System.Collections;
+using static System.Net.Mime.MediaTypeNames;
 
 public class GeniusSDKWrapper : MonoBehaviour
 {
+    // Struct definitions matching C structures
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeniusArray
+    {
+        public ulong size;
+        public IntPtr ptr;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeniusMatrix
+    {
+        public ulong size;
+        public IntPtr ptr; // GeniusArray*
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct GeniusAddress
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 67)] // 2 + 256/4 + 1
+        public string address;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct GeniusTokenValue
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 22)]
+        public string value;
+    }
+
+    // DLL Import declarations for all functions in order
+
+    // Initialization functions
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInit(StringBuilder path, StringBuilder key, int autodht, int process, int baseport);
+    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, int autodht, int process, ushort baseport);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitSecure(StringBuilder path, string dev_config, StringBuilder key, int autodht, int process, int baseport);
+    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, int autodht, int process, ushort baseport);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern IntPtr GeniusSDKInitMinimal(StringBuilder base_path, StringBuilder eth_private_key, ushort baseport);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -28,12 +68,13 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern void GeniusSDKShutdown();
 
+    // Balance and price functions
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern bool GeniusSDKPayDev(ulong amount);
+    private static extern ulong GeniusSDKGetBalance();
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -42,20 +83,163 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern double GeniusSDKGetGNUSPrice();
 
+    // Token conversion functions
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern ulong GeniusSDKGetBalance();
+    private static extern GeniusTokenValue GeniusSDKToChild(ulong minions, string token_id);
 
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern ulong GeniusSDKFromChild(ref GeniusTokenValue child, string token_id);
+
+    // Balance retrieval functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusTokenValue GeniusSDKGetBalanceGNUS();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern IntPtr GeniusSDKGetBalanceGNUSString();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern ulong GeniusSDKGetBalanceByToken(string token_id);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern IntPtr GeniusSDKGetBalanceByTokenString(string token_id);
+
+    // Address function
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusAddress GeniusSDKGetAddress();
+
+    // Transaction functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusMatrix GeniusSDKGetInTransactions();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusMatrix GeniusSDKGetOutTransactions();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKFreeTransactions(GeniusMatrix matrix);
+
+    // Minting functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKMint(ulong amount, string transaction_hash, string chain_id, string token_id);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKMintGNUS(ref GeniusTokenValue gnus, string transaction_hash, string chain_id, string token_id);
+
+    // Transfer functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern bool GeniusSDKTransfer(ulong amount, ref GeniusAddress dest);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern bool GeniusSDKTransferGNUS(ref GeniusTokenValue gnus, ref GeniusAddress dest);
+
+    // Pay dev function
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern bool GeniusSDKPayDev(ulong amount, string token_id);
+
+    // Cost calculation functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern ulong GeniusSDKGetCost(string jsondata);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusTokenValue GeniusSDKGetCostGNUS(string jsondata);
+
+    // Process function
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKProcess(string jsondata);
+
+    // Unit conversion functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern ulong GeniusSDKToMinions(ref GeniusTokenValue gnus);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusTokenValue GeniusSDKToGenius(ulong minions);
+
+    // Instance management
     private bool isReady = false;
     private bool isShutdown = false;
     [SerializeField] private string address = "0xcatcatcat";
     [SerializeField][Range(0f, 1f)] private float cut = 0.7f;
     [SerializeField] private float tokenValue = 1.0f;
-    [SerializeField] private int tokenID = 1;
-
+    [SerializeField] private string tokenID = "0000000000000000000000000000000100000000000000000000000000000002";
 
     private static GeniusSDKWrapper instance;
     public static GeniusSDKWrapper Instance
@@ -65,7 +249,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             if (instance == null)
             {
                 instance = new GameObject("GeniusSDKWrapper").AddComponent<GeniusSDKWrapper>();
-                DontDestroyOnLoad(instance.gameObject); // Persist across scene loads
+                DontDestroyOnLoad(instance.gameObject);
             }
             return instance;
         }
@@ -76,25 +260,22 @@ public class GeniusSDKWrapper : MonoBehaviour
         if (instance == null)
         {
             instance = this;
-            DontDestroyOnLoad(gameObject); // Persist across scene loads
+            DontDestroyOnLoad(gameObject);
             StartCoroutine(InitGeniusSDK());
         }
         else
         {
-            Destroy(gameObject); // Ensure only one instance
+            Destroy(gameObject);
         }
     }
 
     private IEnumerator InitGeniusSDK()
     {
-        Debug.Log("Initializing Genius SDK");
-        // Define the path for persistent data
-        StringBuilder pathBuilder = new StringBuilder(Application.persistentDataPath + "/", 1024);
-        string destinationPath = Path.Combine(Application.persistentDataPath, "dev_config.json");
-        //if (!File.Exists(destinationPath))
-        //{
-        Debug.Log("dev_config.json not found. Creating a new one...");
-        // JSON data to write
+        UnityEngine.Debug.Log("Initializing Genius SDK");
+        StringBuilder pathBuilder = new StringBuilder(UnityEngine.Application.persistentDataPath + "/", 1024);
+        string destinationPath = Path.Combine(UnityEngine.Application.persistentDataPath, "dev_config.json");
+
+        UnityEngine.Debug.Log("dev_config.json not found. Creating a new one...");
         string jsonData = $@"{{
     ""Address"": ""{address}"",
     ""Cut"": ""{cut}"",
@@ -102,30 +283,18 @@ public class GeniusSDKWrapper : MonoBehaviour
     ""TokenID"": ""{tokenID}"",
     ""WriteDirectory"": """"
 }}";
-        //string jsonData = @"{
-        //    ""Address"": ""0xcatcatcat"",
-        //    ""Cut"": ""0.7"",
-        //    ""TokenValue"": 1.0,
-        //    ""TokenID"": 1,
-        //    ""WriteDirectory"": """"
-        //}";
+
         try
         {
             File.WriteAllText(destinationPath, jsonData);
-            Debug.Log("dev_config.json created successfully.");
+            UnityEngine.Debug.Log("dev_config.json created successfully.");
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Error writing dev_config.json: {ex.Message}");
-            yield break; // Exit the coroutine if writing fails
+            UnityEngine.Debug.LogError($"Error writing dev_config.json: {ex.Message}");
+            yield break;
         }
-        //}
-        //else
-        //{
-        //    Debug.Log("dev_config.json already exists. Skipping creation.");
-        //}
 
-        // Generate a cryptographic key
         byte[] keyBytes = new byte[32];
         using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
         {
@@ -138,97 +307,216 @@ public class GeniusSDKWrapper : MonoBehaviour
         }
         StringBuilder key = new StringBuilder(keyBuilder.ToString(), 1024);
 
-        Debug.Log("Try to init SDK");
+        UnityEngine.Debug.Log("Try to init SDK");
         try
         {
             IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, 1, 1, 42001);
             string result = Marshal.PtrToStringAnsi(resultPtr);
-            Debug.Log($"GeniusSDKInit returned: {result}");
+            UnityEngine.Debug.Log($"GeniusSDKInit returned: {result}");
             isReady = true;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Error initializing Genius SDK: {ex.Message}");
+            UnityEngine.Debug.LogError($"Error initializing Genius SDK: {ex.Message}");
         }
 
-        // Simulating async initialization
-        yield return null; // Ensure the coroutine has at least one yield
+        yield return null;
     }
 
-    // Public method to pay developer 
-    public bool PayDev(ulong amount)
+    // Public wrapper methods for all functions
+
+    // Initialization wrappers
+    public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort)
     {
-        Debug.Log($"Attempting to pay developer {amount} tokens");
-        try
-        {
-            bool result = GeniusSDKPayDev(amount);
-            Debug.Log($"GeniusSDKPayDev returned: {result}");
-            return result;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Error in GeniusSDKPayDev: {ex.Message}");
-            return false;
-        }
+        var pathBuilder = new StringBuilder(basePath, 1024);
+        var keyBuilder = new StringBuilder(privateKey, 1024);
+        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht ? 1 : 0, process ? 1 : 0, basePort);
+        return Marshal.PtrToStringAnsi(resultPtr);
     }
 
-    // Public method to get current balance
+    public string InitMinimalSDK(string basePath, string privateKey, ushort basePort)
+    {
+        var pathBuilder = new StringBuilder(basePath, 1024);
+        var keyBuilder = new StringBuilder(privateKey, 1024);
+        IntPtr resultPtr = GeniusSDKInitMinimal(pathBuilder, keyBuilder, basePort);
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public void Shutdown()
+    {
+        GeniusSDKShutdown();
+        isShutdown = true;
+    }
+
+    // Balance and price wrappers
     public ulong GetBalance()
     {
-        Debug.unityLogger.logEnabled = true;
-        Debug.Log("Getting current balance");
         try
         {
             ulong balance = GeniusSDKGetBalance();
-            Debug.Log($"Current balance: {balance}");
             return balance;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Error in GeniusSDKGetBalance: {ex.Message}");
+            UnityEngine.Debug.LogError($"Error in GeniusSDKGetBalance: {ex.Message}");
             return 0;
         }
-        Debug.unityLogger.logEnabled = false;
     }
 
     public double GetGNUSPrice()
     {
-        Debug.unityLogger.logEnabled = true;
-        Debug.Log("Getting current GNUS price");
         try
         {
             double price = GeniusSDKGetGNUSPrice();
-            Debug.Log($"Current Prive: {price}");
             return price;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Error in GetGNUSPrice: {ex.Message}");
+            UnityEngine.Debug.LogError($"Error in GetGNUSPrice: {ex.Message}");
             return 0;
         }
-        Debug.unityLogger.logEnabled = false;
     }
 
+    // Token conversion wrappers
+    public GeniusTokenValue ToChild(ulong minions, string tokenId)
+    {
+        return GeniusSDKToChild(minions, tokenId);
+    }
+
+    public ulong FromChild(GeniusTokenValue child, string tokenId)
+    {
+        return GeniusSDKFromChild(ref child, tokenId);
+    }
+
+    // Balance retrieval wrappers
+    public GeniusTokenValue GetBalanceGNUS()
+    {
+        return GeniusSDKGetBalanceGNUS();
+    }
+
+    public string GetBalanceGNUSString()
+    {
+        IntPtr resultPtr = GeniusSDKGetBalanceGNUSString();
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public ulong GetBalanceByToken(string tokenId)
+    {
+        return GeniusSDKGetBalanceByToken(tokenId);
+    }
+
+    public string GetBalanceByTokenString(string tokenId)
+    {
+        IntPtr resultPtr = GeniusSDKGetBalanceByTokenString(tokenId);
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    // Address wrapper
+    public GeniusAddress GetAddress()
+    {
+        return GeniusSDKGetAddress();
+    }
+
+    // Transaction wrappers
+    public GeniusMatrix GetInTransactions()
+    {
+        return GeniusSDKGetInTransactions();
+    }
+
+    public GeniusMatrix GetOutTransactions()
+    {
+        return GeniusSDKGetOutTransactions();
+    }
+
+    public void FreeTransactions(GeniusMatrix matrix)
+    {
+        GeniusSDKFreeTransactions(matrix);
+    }
+
+    // Minting wrappers
+    public void Mint(ulong amount, string transactionHash, string chainId, string tokenId)
+    {
+        GeniusSDKMint(amount, transactionHash, chainId, tokenId);
+    }
+
+    public void MintGNUS(GeniusTokenValue gnus, string transactionHash, string chainId, string tokenId)
+    {
+        GeniusSDKMintGNUS(ref gnus, transactionHash, chainId, tokenId);
+    }
+
+    // Transfer wrappers
+    public bool Transfer(ulong amount, GeniusAddress destination)
+    {
+        return GeniusSDKTransfer(amount, ref destination);
+    }
+
+    public bool TransferGNUS(GeniusTokenValue gnus, GeniusAddress destination)
+    {
+        return GeniusSDKTransferGNUS(ref gnus, ref destination);
+    }
+
+    // Pay dev wrapper (updated to match C signature with token_id)
+    public bool PayDev(ulong amount, string tokenId = null)
+    {
+        UnityEngine.Debug.Log($"Attempting to pay developer {amount} tokens");
+        try
+        {
+            bool result = GeniusSDKPayDev(amount, tokenId ?? tokenID);
+            UnityEngine.Debug.Log($"GeniusSDKPayDev returned: {result}");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error in GeniusSDKPayDev: {ex.Message}");
+            return false;
+        }
+    }
+
+    // Cost calculation wrappers
+    public ulong GetCost(string jsonData)
+    {
+        return GeniusSDKGetCost(jsonData);
+    }
+
+    public GeniusTokenValue GetCostGNUS(string jsonData)
+    {
+        return GeniusSDKGetCostGNUS(jsonData);
+    }
+
+    // Process wrapper
+    public void Process(string jsonData)
+    {
+        GeniusSDKProcess(jsonData);
+    }
+
+    // Unit conversion wrappers
+    public ulong ToMinions(GeniusTokenValue gnus)
+    {
+        return GeniusSDKToMinions(ref gnus);
+    }
+
+    public GeniusTokenValue ToGenius(ulong minions)
+    {
+        return GeniusSDKToGenius(minions);
+    }
+
+    // Properties
     public bool IsReady => isReady;
 
-
+    // Cleanup
     void OnApplicationQuit()
     {
         if (isShutdown) return;
         isShutdown = true;
-        Debug.unityLogger.logEnabled = true;
-        Debug.Log("Shutting down Genius SDK on application quit.");
+        UnityEngine.Debug.Log("Shutting down Genius SDK on application quit.");
         GeniusSDKShutdown();
-        Debug.unityLogger.logEnabled = false;
     }
 
     void OnDestroy()
     {
         if (isShutdown) return;
         isShutdown = true;
-        Debug.unityLogger.logEnabled = true;
-        Debug.Log("Shutting down Genius SDK on destroy.");
+        UnityEngine.Debug.Log("Shutting down Genius SDK on destroy.");
         GeniusSDKShutdown();
-        Debug.unityLogger.logEnabled = false;
     }
 }
