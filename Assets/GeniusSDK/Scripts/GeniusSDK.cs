@@ -157,21 +157,6 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern void GeniusSDKFreeTransactions(GeniusMatrix matrix);
 
-    // Minting functions
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern void GeniusSDKMint(ulong amount, string transaction_hash, string chain_id, string token_id);
-
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern void GeniusSDKMintGNUS(ref GeniusTokenValue gnus, string transaction_hash, string chain_id, string token_id);
-
     // Transfer functions
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -431,17 +416,6 @@ public class GeniusSDKWrapper : MonoBehaviour
     public void FreeTransactions(GeniusMatrix matrix)
     {
         GeniusSDKFreeTransactions(matrix);
-    }
-
-    // Minting wrappers
-    public void Mint(ulong amount, string transactionHash, string chainId, string tokenId)
-    {
-        GeniusSDKMint(amount, transactionHash, chainId, tokenId);
-    }
-
-    public void MintGNUS(GeniusTokenValue gnus, string transactionHash, string chainId, string tokenId)
-    {
-        GeniusSDKMintGNUS(ref gnus, transactionHash, chainId, tokenId);
     }
 
     // Transfer wrappers
