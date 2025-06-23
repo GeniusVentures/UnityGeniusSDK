@@ -83,20 +83,6 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern double GeniusSDKGetGNUSPrice();
 
-    // Token conversion functions
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern GeniusTokenValue GeniusSDKToChild(ulong minions, string token_id);
-
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern ulong GeniusSDKFromChild(ref GeniusTokenValue child, string token_id);
 
     // Balance retrieval functions
 #if UNITY_IOS
@@ -203,20 +189,6 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern void GeniusSDKProcess(string jsondata);
 
-    // Unit conversion functions
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern ulong GeniusSDKToMinions(ref GeniusTokenValue gnus);
-
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern GeniusTokenValue GeniusSDKToGenius(ulong minions);
 
     // Instance management
     private bool isReady = false;
@@ -362,17 +334,6 @@ public class GeniusSDKWrapper : MonoBehaviour
         }
     }
 
-    // Token conversion wrappers
-    public GeniusTokenValue ToChild(ulong minions, string tokenId)
-    {
-        return GeniusSDKToChild(minions, tokenId);
-    }
-
-    public ulong FromChild(GeniusTokenValue child, string tokenId)
-    {
-        return GeniusSDKFromChild(ref child, tokenId);
-    }
-
     // Balance retrieval wrappers
     public GeniusTokenValue GetBalanceGNUS()
     {
@@ -461,17 +422,6 @@ public class GeniusSDKWrapper : MonoBehaviour
     public void Process(string jsonData)
     {
         GeniusSDKProcess(jsonData);
-    }
-
-    // Unit conversion wrappers
-    public ulong ToMinions(GeniusTokenValue gnus)
-    {
-        return GeniusSDKToMinions(ref gnus);
-    }
-
-    public GeniusTokenValue ToGenius(ulong minions)
-    {
-        return GeniusSDKToGenius(minions);
     }
 
     // Properties
