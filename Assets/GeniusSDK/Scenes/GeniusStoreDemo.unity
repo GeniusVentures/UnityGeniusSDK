@@ -180,7 +180,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Minions: 0'
+  m_text: 'Tokens: 0'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -269,7 +269,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5d176aa3093930f46986fe0847ae4fb9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  labelPrefix: 'Minions: '
+  labelPrefix: 'Tokens: '
   updateInterval: 10
 --- !u!1 &1081865693
 GameObject:

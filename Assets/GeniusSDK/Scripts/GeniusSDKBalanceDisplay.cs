@@ -38,7 +38,7 @@ public class GeniusSDKBalanceDisplay : MonoBehaviour
 
     public void ForceUpdateBalance()
     {
-        ulong balance = GeniusSDKWrapper.Instance.GetBalance();
+        ulong balance = GeniusSDKWrapper.Instance.GetBalance(GeniusSDKWrapper.Instance.TokenID);
             if (uiText != null)
             {  
                 uiText.text = labelPrefix + balance.ToString();
@@ -53,7 +53,7 @@ public class GeniusSDKBalanceDisplay : MonoBehaviour
     {
         while (true)
         {
-            ulong balance = GeniusSDKWrapper.Instance.GetBalance();
+            ulong balance = GeniusSDKWrapper.Instance.GetBalance(GeniusSDKWrapper.Instance.TokenID);
             if (uiText != null)
             {  
                 uiText.text = labelPrefix + balance.ToString();

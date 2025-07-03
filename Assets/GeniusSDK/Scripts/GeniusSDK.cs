@@ -74,7 +74,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern ulong GeniusSDKGetBalance();
+    private static extern ulong GeniusSDKGetBalance(string token_id);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -98,20 +98,6 @@ public class GeniusSDKWrapper : MonoBehaviour
     [DllImport("GeniusSDK")]
 #endif
     private static extern IntPtr GeniusSDKGetBalanceGNUSString();
-
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern ulong GeniusSDKGetBalanceByToken(string token_id);
-
-#if UNITY_IOS
-    [DllImport("__Internal")]
-#else
-    [DllImport("GeniusSDK")]
-#endif
-    private static extern IntPtr GeniusSDKGetBalanceByTokenString(string token_id);
 
     // Address function
 #if UNITY_IOS
@@ -281,7 +267,11 @@ public class GeniusSDKWrapper : MonoBehaviour
     }
 
     // Public wrapper methods for all functions
-
+    public string TokenID
+    {
+        get { return tokenID; }
+        set { tokenID = value; }
+    }
     // Initialization wrappers
     public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort)
     {
@@ -306,11 +296,11 @@ public class GeniusSDKWrapper : MonoBehaviour
     }
 
     // Balance and price wrappers
-    public ulong GetBalance()
+    public ulong GetBalance(string tokenid)
     {
         try
         {
-            ulong balance = GeniusSDKGetBalance();
+            ulong balance = GeniusSDKGetBalance(tokenid);
             return balance;
         }
         catch (Exception ex)
@@ -343,17 +333,6 @@ public class GeniusSDKWrapper : MonoBehaviour
     public string GetBalanceGNUSString()
     {
         IntPtr resultPtr = GeniusSDKGetBalanceGNUSString();
-        return Marshal.PtrToStringAnsi(resultPtr);
-    }
-
-    public ulong GetBalanceByToken(string tokenId)
-    {
-        return GeniusSDKGetBalanceByToken(tokenId);
-    }
-
-    public string GetBalanceByTokenString(string tokenId)
-    {
-        IntPtr resultPtr = GeniusSDKGetBalanceByTokenString(tokenId);
         return Marshal.PtrToStringAnsi(resultPtr);
     }
 
