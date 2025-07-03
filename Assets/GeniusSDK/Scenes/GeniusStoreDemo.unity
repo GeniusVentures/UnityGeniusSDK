@@ -413,7 +413,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   updateInterval: 10
-  basePriceUSD: 0.001
+  basePriceUSD: 0.1
   labelPrefix: 'Cost: '
   lastPrice: 0
 --- !u!114 &1122839267

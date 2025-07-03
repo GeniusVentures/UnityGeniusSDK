@@ -59,50 +59,49 @@ public class GeniusSDKPricer : MonoBehaviour
     private void UpdatePriceDisplay()
     {
         UnityEngine.Debug.unityLogger.logEnabled = true;
-        ulong gnusPriceUSD = GeniusSDKWrapper.Instance.GetBalance(GeniusSDKWrapper.Instance.TokenID);
-        UnityEngine.Debug.LogWarning($"What is the price? {gnusPriceUSD}");
-        //double gnusPriceUSD = GeniusSDKWrapper.Instance.GetBalanceByTokenString(GeniusSDKWrapper.Instance.TokenID);
-        //if (gnusPriceUSD <= 0 && lastPrice <= 0)
-        //{
-        //    if (uiText != null)
-        //    {
-        //        uiText.text = labelPrefix + "N/A";
-        //    }
-        //    else if (tmpText != null)
-        //    {
-        //        tmpText.text = labelPrefix + "N/A";
-        //    }
-        //    return;
-        //}
-        //double minions = 0;
-        //ulong roundedMinions = 0;
-        //if (gnusPriceUSD <= 0 && lastPrice > 0)
-        //{
-        //    minions = (basePriceUSD / lastPrice) * 1_000_000;
-        //    roundedMinions = (ulong)Mathf.Ceil((float)minions);
-        //    if (uiText != null)
-        //    {
-        //        uiText.text = labelPrefix + roundedMinions.ToString("N0");
-        //    }
-        //    else if (tmpText != null)
-        //    {
-        //        tmpText.text = labelPrefix + roundedMinions.ToString("N0");
-        //    }
-        //    return;
-        //}
-        //lastPrice = gnusPriceUSD;
+        //ulong gnusPriceUSD = GeniusSDKWrapper.Instance.GetBalance(GeniusSDKWrapper.Instance.TokenID);
+        double gnusPriceUSD = GeniusSDKWrapper.Instance.GetGNUSPrice();
+        if (gnusPriceUSD <= 0 && lastPrice <= 0)
+        {
+            if (uiText != null)
+            {
+                uiText.text = labelPrefix + "N/A";
+            }
+            else if (tmpText != null)
+            {
+                tmpText.text = labelPrefix + "N/A";
+            }
+            return;
+        }
+        double minions = 0;
+        ulong roundedMinions = 0;
+        if (gnusPriceUSD <= 0 && lastPrice > 0)
+        {
+            minions = (basePriceUSD / lastPrice) * 1_000_000;
+            roundedMinions = (ulong)Mathf.Ceil((float)minions);
+            if (uiText != null)
+            {
+                uiText.text = labelPrefix + roundedMinions.ToString("N0");
+            }
+            else if (tmpText != null)
+            {
+                tmpText.text = labelPrefix + roundedMinions.ToString("N0");
+            }
+            return;
+        }
+        lastPrice = gnusPriceUSD;
 
-        //minions = (basePriceUSD / gnusPriceUSD) * 1_000_000; 
-        //roundedMinions = (ulong)Mathf.Ceil((float)minions);
+        minions = (basePriceUSD / gnusPriceUSD) * 1_000_000;
+        roundedMinions = (ulong)Mathf.Ceil((float)minions);
 
-        //if (uiText != null)
-        //{
-        //    uiText.text = labelPrefix + roundedMinions.ToString("N0");
-        //}
-        //else if (tmpText != null)
-        //{
-        //    tmpText.text = labelPrefix + roundedMinions.ToString("N0");
-        //}
+        if (uiText != null)
+        {
+            uiText.text = labelPrefix + roundedMinions.ToString("N0");
+        }
+        else if (tmpText != null)
+        {
+            tmpText.text = labelPrefix + roundedMinions.ToString("N0");
+        }
         UnityEngine.Debug.unityLogger.logEnabled = false;
     }
 }
