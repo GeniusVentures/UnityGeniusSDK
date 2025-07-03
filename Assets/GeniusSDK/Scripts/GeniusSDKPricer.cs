@@ -61,6 +61,7 @@ public class GeniusSDKPricer : MonoBehaviour
         UnityEngine.Debug.unityLogger.logEnabled = true;
         //ulong gnusPriceUSD = GeniusSDKWrapper.Instance.GetBalance(GeniusSDKWrapper.Instance.TokenID);
         double gnusPriceUSD = GeniusSDKWrapper.Instance.GetGNUSPrice();
+        
         if (gnusPriceUSD <= 0 && lastPrice <= 0)
         {
             if (uiText != null)

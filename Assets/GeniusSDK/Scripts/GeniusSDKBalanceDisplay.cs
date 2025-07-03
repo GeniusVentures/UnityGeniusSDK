@@ -53,7 +53,9 @@ public class GeniusSDKBalanceDisplay : MonoBehaviour
     {
         while (true)
         {
+            UnityEngine.Debug.unityLogger.logEnabled = true;
             ulong balance = GeniusSDKWrapper.Instance.GetBalance(GeniusSDKWrapper.Instance.TokenID);
+            UnityEngine.Debug.LogWarning($"Balance: {balance.ToString()}");
             if (uiText != null)
             {  
                 uiText.text = labelPrefix + balance.ToString();
@@ -64,6 +66,7 @@ public class GeniusSDKBalanceDisplay : MonoBehaviour
             }
 
             yield return new WaitForSeconds(updateInterval);
+            UnityEngine.Debug.unityLogger.logEnabled = false;
         }
     }
 }

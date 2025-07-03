@@ -74,7 +74,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern ulong GeniusSDKGetBalance(string token_id);
+    private static extern ulong GeniusSDKGetBalance([In] byte[] tokenid);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -300,7 +300,20 @@ public class GeniusSDKWrapper : MonoBehaviour
     {
         try
         {
-            ulong balance = GeniusSDKGetBalance(tokenid);
+            if (tokenid.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                tokenid = tokenid.Substring(2);
+
+            if (tokenid.Length != 64)
+            {
+                UnityEngine.Debug.LogError($"TokenID should be 64 hex characters, got {tokenid.Length}");
+                return 0;
+            }
+
+            byte[] tokenBytes = new byte[32];
+            for (int i = 0; i < 32; i++)
+                tokenBytes[i] = Convert.ToByte(tokenid.Substring(i * 2, 2), 16);
+
+            ulong balance = GeniusSDKGetBalance(tokenBytes);
             return balance;
         }
         catch (Exception ex)
@@ -309,6 +322,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             return 0;
         }
     }
+
 
     public double GetGNUSPrice()
     {
