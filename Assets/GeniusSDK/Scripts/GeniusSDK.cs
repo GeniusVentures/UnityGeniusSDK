@@ -150,7 +150,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern bool GeniusSDKPayDev(ulong amount, string token_id);
+    private static extern bool GeniusSDKPayDev(ulong amount, [In] byte[] tokenid);
 
     // Cost calculation functions
 #if UNITY_IOS
@@ -267,6 +267,26 @@ public class GeniusSDKWrapper : MonoBehaviour
     }
 
     // Public wrapper methods for all functions
+    //Convert 0x token
+    private byte[] ParseTokenId(string tokenid)
+    {
+        if (string.IsNullOrEmpty(tokenid))
+            throw new ArgumentException("TokenID is null or empty");
+
+        if (tokenid.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            tokenid = tokenid.Substring(2);
+
+        if (tokenid.Length != 64)
+            throw new ArgumentException($"TokenID should be 64 hex characters, got {tokenid.Length}");
+
+        byte[] tokenBytes = new byte[32];
+        for (int i = 0; i < 32; i++)
+            tokenBytes[i] = Convert.ToByte(tokenid.Substring(i * 2, 2), 16);
+
+        return tokenBytes;
+    }
+
+    //Get Token ID
     public string TokenID
     {
         get { return tokenID; }
@@ -300,18 +320,7 @@ public class GeniusSDKWrapper : MonoBehaviour
     {
         try
         {
-            if (tokenid.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-                tokenid = tokenid.Substring(2);
-
-            if (tokenid.Length != 64)
-            {
-                UnityEngine.Debug.LogError($"TokenID should be 64 hex characters, got {tokenid.Length}");
-                return 0;
-            }
-
-            byte[] tokenBytes = new byte[32];
-            for (int i = 0; i < 32; i++)
-                tokenBytes[i] = Convert.ToByte(tokenid.Substring(i * 2, 2), 16);
+            byte[] tokenBytes = ParseTokenId(tokenid);
 
             ulong balance = GeniusSDKGetBalance(tokenBytes);
             return balance;
@@ -389,7 +398,8 @@ public class GeniusSDKWrapper : MonoBehaviour
         UnityEngine.Debug.Log($"Attempting to pay developer {amount} tokens");
         try
         {
-            bool result = GeniusSDKPayDev(amount, tokenId ?? tokenID);
+            byte[] tokenBytes = ParseTokenId(tokenId ?? tokenID);
+            bool result = GeniusSDKPayDev(amount, tokenBytes);
             UnityEngine.Debug.Log($"GeniusSDKPayDev returned: {result}");
             return result;
         }
@@ -399,6 +409,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             return false;
         }
     }
+
 
     // Cost calculation wrappers
     public ulong GetCost(string jsonData)

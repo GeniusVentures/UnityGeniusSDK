@@ -75,7 +75,7 @@ public class GeniusSDKPurchase : MonoBehaviour
         Debug.Log("HandlePurchase clicked");
         ulong minionCost = (ulong)Mathf.Ceil((float)((pricer.basePriceUSD / pricer.lastPrice) * 1_000_000));
 
-        bool success = GeniusSDKWrapper.Instance.PayDev(minionCost);
+        bool success = GeniusSDKWrapper.Instance.PayDev(minionCost, GeniusSDKWrapper.Instance.TokenID);
 
         if (success)
         {
