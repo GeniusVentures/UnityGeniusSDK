@@ -45,14 +45,14 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, int autodht, int process, ushort baseport);
+    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, int autodht, int process, ushort baseport, int is_full_node);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, int autodht, int process, ushort baseport);
+    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, int autodht, int process, ushort baseport, int is_full_node);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -253,7 +253,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         UnityEngine.Debug.Log("Try to init SDK");
         try
         {
-            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, 1, 1, 42001);
+            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, 1, 1, 42001, 0);
             string result = Marshal.PtrToStringAnsi(resultPtr);
             UnityEngine.Debug.Log($"GeniusSDKInit returned: {result}");
             isReady = true;
@@ -293,11 +293,11 @@ public class GeniusSDKWrapper : MonoBehaviour
         set { tokenID = value; }
     }
     // Initialization wrappers
-    public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort)
+    public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort, bool is_full_node)
     {
         var pathBuilder = new StringBuilder(basePath, 1024);
         var keyBuilder = new StringBuilder(privateKey, 1024);
-        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht ? 1 : 0, process ? 1 : 0, basePort);
+        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht ? 1 : 0, process ? 1 : 0, basePort, is_full_node ? 1 : 0);
         return Marshal.PtrToStringAnsi(resultPtr);
     }
 
