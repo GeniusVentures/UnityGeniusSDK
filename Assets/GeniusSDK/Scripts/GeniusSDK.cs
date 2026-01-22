@@ -37,6 +37,69 @@ public class GeniusSDKWrapper : MonoBehaviour
         public string value;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeniusTokenID
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+        public byte[] data;
+    }
+
+    // Enum types matching C API
+    public enum GeniusNodeReturnValue : int
+    {
+        GENIUS_NODE_RET_OK = 0,
+        GENIUS_NODE_ERROR_NOT_INITIALIZED,
+        GENIUS_NODE_ERROR_PROCESS_IMAGE,
+        GENIUS_NODE_ERROR_MINT,
+        GENIUS_NODE_INVALID_ARGUMENT,
+        GENIUS_NODE_ERROR_TRANSFER,
+        GENIUS_NODE_ERROR_PAY_DEV
+    }
+
+    public enum GeniusNodeState : int
+    {
+        GENIUS_NODE_CREATING = 0,
+        GENIUS_NODE_MIGRATING_DATABASE,
+        GENIUS_NODE_INITIALIZING_DATABASE,
+        GENIUS_NODE_INITIALIZING_PROCESSING,
+        GENIUS_NODE_INITIALIZING_BLOCKCHAIN,
+        GENIUS_NODE_INITIALIZING_TRANSACTIONS,
+        GENIUS_NODE_INITIALIZING_DHT,
+        GENIUS_NODE_READY
+    }
+
+    public enum GeniusTransactionManagerState : int
+    {
+        GENIUS_TM_STATE_CREATING = 0,
+        GENIUS_TM_STATE_INITIALIZING = 1,
+        GENIUS_TM_STATE_SYNCHING = 2,
+        GENIUS_TM_STATE_READY = 3
+    }
+
+    public enum GeniusTransactionStatus : int
+    {
+        GENIUS_TX_STATUS_CREATED = 0,
+        GENIUS_TX_STATUS_SENDING = 1,
+        GENIUS_TX_STATUS_CONFIRMED = 2,
+        GENIUS_TX_STATUS_VERIFYING = 3,
+        GENIUS_TX_STATUS_FAILED = 4,
+        GENIUS_TX_STATUS_INVALID = 5
+    }
+
+    public enum GeniusProcessingStatus : int
+    {
+        GENIUS_PR_STATUS_DISABLED = 0,
+        GENIUS_PR_STATUS_IDLE = 1,
+        GENIUS_PR_STATUS_PROCESSING = 2
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeniusProcessingStatusInfo
+    {
+        public GeniusProcessingStatus status;
+        public float percentage;
+    }
+
     // DLL Import declarations for all functions in order
 
     // Initialization functions
@@ -45,14 +108,14 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, int autodht, int process, ushort baseport, int is_full_node);
+    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, bool autodht, bool process, ushort baseport, bool is_full_node);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, int autodht, int process, ushort baseport, int is_full_node);
+    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, bool autodht, bool process, ushort baseport, bool is_full_node);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -66,7 +129,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern void GeniusSDKShutdown();
+    private static extern GeniusNodeReturnValue GeniusSDKShutdown();
 
     // Balance and price functions
 #if UNITY_IOS
@@ -74,7 +137,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern ulong GeniusSDKGetBalance([In] byte[] tokenid);
+    private static extern ulong GeniusSDKGetBalance(GeniusTokenID token_id);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -83,6 +146,12 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern double GeniusSDKGetGNUSPrice();
 
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern IntPtr GeniusSDKGetVersion();
 
     // Balance retrieval functions
 #if UNITY_IOS
@@ -135,14 +204,14 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern bool GeniusSDKTransfer(ulong amount, ref GeniusAddress dest);
+    private static extern GeniusNodeReturnValue GeniusSDKTransfer(ulong amount, ref GeniusAddress dest, GeniusTokenID token_id);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern bool GeniusSDKTransferGNUS(ref GeniusTokenValue gnus, ref GeniusAddress dest);
+    private static extern GeniusNodeReturnValue GeniusSDKTransferGNUS(ref GeniusTokenValue gnus, ref GeniusAddress dest);
 
     // Pay dev function
 #if UNITY_IOS
@@ -150,7 +219,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern bool GeniusSDKPayDev(ulong amount, [In] byte[] tokenid);
+    private static extern GeniusNodeReturnValue GeniusSDKPayDev(ulong amount, GeniusTokenID token_id);
 
     // Cost calculation functions
 #if UNITY_IOS
@@ -173,8 +242,56 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern void GeniusSDKProcess(string jsondata);
+    private static extern GeniusNodeReturnValue GeniusSDKProcess(string jsondata);
 
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern bool GeniusSDKCheckJobValidity(string jsondata);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusTransactionManagerState GeniusSDKGetTransactionManagerState();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeState GeniusSDKGetNodeState();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusTransactionStatus GeniusSDKGetTransactionStatus(string tx_id);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusProcessingStatusInfo GeniusSDKGetProcessingStatus();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKMint(ulong amount, string transaction_hash, string chain_id, GeniusTokenID token_id);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKMintGNUS(ref GeniusTokenValue amount, string transaction_hash, string chain_id);
 
     // Instance management
     private bool isReady = false;
@@ -253,7 +370,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         UnityEngine.Debug.Log("Try to init SDK");
         try
         {
-            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, 1, 1, 42001, 0);
+            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, true, true, 42001, false);
             string result = Marshal.PtrToStringAnsi(resultPtr);
             UnityEngine.Debug.Log($"GeniusSDKInit returned: {result}");
             isReady = true;
@@ -268,7 +385,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     // Public wrapper methods for all functions
     //Convert 0x token
-    private byte[] ParseTokenId(string tokenid)
+    private GeniusTokenID ParseTokenId(string tokenid)
     {
         if (string.IsNullOrEmpty(tokenid))
             throw new ArgumentException("TokenID is null or empty");
@@ -283,7 +400,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         for (int i = 0; i < 32; i++)
             tokenBytes[i] = Convert.ToByte(tokenid.Substring(i * 2, 2), 16);
 
-        return tokenBytes;
+        return new GeniusTokenID { data = tokenBytes };
     }
 
     //Get Token ID
@@ -297,7 +414,7 @@ public class GeniusSDKWrapper : MonoBehaviour
     {
         var pathBuilder = new StringBuilder(basePath, 1024);
         var keyBuilder = new StringBuilder(privateKey, 1024);
-        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht ? 1 : 0, process ? 1 : 0, basePort, is_full_node ? 1 : 0);
+        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht, process, basePort, is_full_node);
         return Marshal.PtrToStringAnsi(resultPtr);
     }
 
@@ -309,10 +426,11 @@ public class GeniusSDKWrapper : MonoBehaviour
         return Marshal.PtrToStringAnsi(resultPtr);
     }
 
-    public void Shutdown()
+    public GeniusNodeReturnValue Shutdown()
     {
-        GeniusSDKShutdown();
+        var result = GeniusSDKShutdown();
         isShutdown = true;
+        return result;
     }
 
     // Balance and price wrappers
@@ -320,9 +438,8 @@ public class GeniusSDKWrapper : MonoBehaviour
     {
         try
         {
-            byte[] tokenBytes = ParseTokenId(tokenid);
-
-            ulong balance = GeniusSDKGetBalance(tokenBytes);
+            GeniusTokenID tokenId = ParseTokenId(tokenid);
+            ulong balance = GeniusSDKGetBalance(tokenId);
             return balance;
         }
         catch (Exception ex)
@@ -344,6 +461,20 @@ public class GeniusSDKWrapper : MonoBehaviour
         {
             UnityEngine.Debug.LogError($"Error in GetGNUSPrice: {ex.Message}");
             return 0;
+        }
+    }
+
+    public string GetVersion()
+    {
+        try
+        {
+            IntPtr resultPtr = GeniusSDKGetVersion();
+            return Marshal.PtrToStringAnsi(resultPtr);
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error in GetVersion: {ex.Message}");
+            return "Unknown";
         }
     }
 
@@ -382,31 +513,40 @@ public class GeniusSDKWrapper : MonoBehaviour
     }
 
     // Transfer wrappers
-    public bool Transfer(ulong amount, GeniusAddress destination)
+    public GeniusNodeReturnValue Transfer(ulong amount, GeniusAddress destination, string tokenid = null)
     {
-        return GeniusSDKTransfer(amount, ref destination);
+        try
+        {
+            GeniusTokenID tokenId = ParseTokenId(tokenid ?? tokenID);
+            return GeniusSDKTransfer(amount, ref destination, tokenId);
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error in Transfer: {ex.Message}");
+            return GeniusNodeReturnValue.GENIUS_NODE_INVALID_ARGUMENT;
+        }
     }
 
-    public bool TransferGNUS(GeniusTokenValue gnus, GeniusAddress destination)
+    public GeniusNodeReturnValue TransferGNUS(GeniusTokenValue gnus, GeniusAddress destination)
     {
         return GeniusSDKTransferGNUS(ref gnus, ref destination);
     }
 
     // Pay dev wrapper (updated to match C signature with token_id)
-    public bool PayDev(ulong amount, string tokenId = null)
+    public GeniusNodeReturnValue PayDev(ulong amount, string tokenId = null)
     {
         UnityEngine.Debug.Log($"Attempting to pay developer {amount} tokens");
         try
         {
-            byte[] tokenBytes = ParseTokenId(tokenId ?? tokenID);
-            bool result = GeniusSDKPayDev(amount, tokenBytes);
+            GeniusTokenID tid = ParseTokenId(tokenId ?? tokenID);
+            GeniusNodeReturnValue result = GeniusSDKPayDev(amount, tid);
             UnityEngine.Debug.Log($"GeniusSDKPayDev returned: {result}");
             return result;
         }
         catch (Exception ex)
         {
             UnityEngine.Debug.LogError($"Error in GeniusSDKPayDev: {ex.Message}");
-            return false;
+            return GeniusNodeReturnValue.GENIUS_NODE_INVALID_ARGUMENT;
         }
     }
 
@@ -423,9 +563,55 @@ public class GeniusSDKWrapper : MonoBehaviour
     }
 
     // Process wrapper
-    public void Process(string jsonData)
+    public GeniusNodeReturnValue Process(string jsonData)
     {
-        GeniusSDKProcess(jsonData);
+        return GeniusSDKProcess(jsonData);
+    }
+
+    public bool CheckJobValidity(string jsonData)
+    {
+        return GeniusSDKCheckJobValidity(jsonData);
+    }
+
+    // State query wrappers
+    public GeniusTransactionManagerState GetTransactionManagerState()
+    {
+        return GeniusSDKGetTransactionManagerState();
+    }
+
+    public GeniusNodeState GetNodeState()
+    {
+        return GeniusSDKGetNodeState();
+    }
+
+    public GeniusTransactionStatus GetTransactionStatus(string txId)
+    {
+        return GeniusSDKGetTransactionStatus(txId);
+    }
+
+    public GeniusProcessingStatusInfo GetProcessingStatus()
+    {
+        return GeniusSDKGetProcessingStatus();
+    }
+
+    // Mint wrappers
+    public GeniusNodeReturnValue Mint(ulong amount, string transactionHash, string chainId, string tokenId = null)
+    {
+        try
+        {
+            GeniusTokenID tid = ParseTokenId(tokenId ?? tokenID);
+            return GeniusSDKMint(amount, transactionHash, chainId, tid);
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error in Mint: {ex.Message}");
+            return GeniusNodeReturnValue.GENIUS_NODE_INVALID_ARGUMENT;
+        }
+    }
+
+    public GeniusNodeReturnValue MintGNUS(GeniusTokenValue amount, string transactionHash, string chainId)
+    {
+        return GeniusSDKMintGNUS(ref amount, transactionHash, chainId);
     }
 
     // Properties
@@ -437,7 +623,11 @@ public class GeniusSDKWrapper : MonoBehaviour
         if (isShutdown) return;
         isShutdown = true;
         UnityEngine.Debug.Log("Shutting down Genius SDK on application quit.");
-        GeniusSDKShutdown();
+        var result = GeniusSDKShutdown();
+        if (result != GeniusNodeReturnValue.GENIUS_NODE_RET_OK)
+        {
+            UnityEngine.Debug.LogWarning($"Shutdown returned: {result}");
+        }
     }
 
     void OnDestroy()
@@ -445,6 +635,10 @@ public class GeniusSDKWrapper : MonoBehaviour
         if (isShutdown) return;
         isShutdown = true;
         UnityEngine.Debug.Log("Shutting down Genius SDK on destroy.");
-        GeniusSDKShutdown();
+        var result = GeniusSDKShutdown();
+        if (result != GeniusNodeReturnValue.GENIUS_NODE_RET_OK)
+        {
+            UnityEngine.Debug.LogWarning($"Shutdown returned: {result}");
+        }
     }
 }

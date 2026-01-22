@@ -66,7 +66,7 @@ public class GeniusSDKPurchase : MonoBehaviour
 
         if (isProcessing)
         {
-            Debug.LogWarning("Purchase already in progress — ignoring duplicate click");
+            Debug.LogWarning("Purchase already in progress ï¿½ ignoring duplicate click");
             Debug.unityLogger.logEnabled = false;
             return;
         }
@@ -75,11 +75,11 @@ public class GeniusSDKPurchase : MonoBehaviour
         Debug.Log("HandlePurchase clicked");
         ulong minionCost = (ulong)Mathf.Ceil((float)((pricer.basePriceUSD / pricer.lastPrice) * 1_000_000));
 
-        bool success = GeniusSDKWrapper.Instance.PayDev(minionCost, GeniusSDKWrapper.Instance.TokenID);
+        GeniusSDKWrapper.GeniusNodeReturnValue result = GeniusSDKWrapper.Instance.PayDev(minionCost, GeniusSDKWrapper.Instance.TokenID);
 
-        if (success)
+        if (result == GeniusSDKWrapper.GeniusNodeReturnValue.GENIUS_NODE_RET_OK)
         {
-            Debug.Log($"Purchase successful — awarded");
+            Debug.Log($"Purchase successful ï¿½ awarded");
 
             onPurchaseSuccess?.Invoke();
             // Refresh all balance displays
