@@ -637,13 +637,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 1924405712}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a38606a41ff977c488a53d6462030cd3, type: 3}
+  m_Script: {fileID: 11500000, guid: 9d13c85f4474d5c45a74bdd0dee34cf1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   address: 0xcatcatcat
-  cut: 0
-  tokenValue: 0.7
-  tokenID: 0x0000000000000000000000000000000100000000000000000000000000000002
+  cut: 0.7
+  tokenValue: 1
+  tokenID: 0000000000000000000000000000000100000000000000000000000000000002
 --- !u!114 &1924405715
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -653,7 +653,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1924405712}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 550fa410b926a7840a28137703ef1dd0, type: 3}
+  m_Script: {fileID: 11500000, guid: 4dea330cd02d45d4a8d0a5e65260af71, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   nextScene: GeniusStoreDemo
