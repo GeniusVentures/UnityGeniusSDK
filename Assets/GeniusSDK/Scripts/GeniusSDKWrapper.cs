@@ -296,10 +296,30 @@ public class GeniusSDKWrapper : MonoBehaviour
     // Instance management
     private bool isReady = false;
     private bool isShutdown = false;
+    private static bool androidKeyStoreInitialized = false;
     [SerializeField] private string address = "0xcatcatcat";
     [SerializeField][Range(0f, 1f)] private float cut = 0.7f;
     [SerializeField] private float tokenValue = 1.0f;
     [SerializeField] private string tokenID = "0000000000000000000000000000000100000000000000000000000000000002";
+    [SerializeField] private string pubsubPort = "";
+    [SerializeField] private string pubsubBindAddress = "";
+    [SerializeField] private string[] bootstrapAddresses = new string[]
+    {
+        "/dns4/sg-fullnode-1.gnus.ai/tcp/40102/ipfs/12D3KooWRqFHPFz6YptGnt4wLEGsNuWuv5TLN7rdQ9CFJcbHCWZC",
+        "/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip4/104.236.179.241/tcp/4001/ipfs/QmSoLPppuBtQSGwKDZT2M73ULpjvfd3aZ6ha4oFGL1KrGM",
+        "/ip4/128.199.219.111/tcp/4001/ipfs/QmSoLSafTMBsPKadTEgaXctDQVcqN88CNLHXMkTNwMKPnu",
+        "/ip4/104.236.76.40/tcp/4001/ipfs/QmSoLV4Bbm51jM9C4gDYZQ9Cy3U6aXMJDAbzgu2fzaDs64",
+        "/ip4/178.62.158.247/tcp/4001/ipfs/QmSoLer265NRgSp2LA3dPaeykiS1J6DifTC88f5uVQKNAd",
+        "/ip6/2604:a880:1:20::203:d001/tcp/4001/ipfs/QmSoLPppuBtQSGwKDZT2M73ULpjvfd3aZ6ha4oFGL1KrGM",
+        "/ip6/2400:6180:0:d0::151:6001/tcp/4001/ipfs/QmSoLSafTMBsPKadTEgaXctDQVcqN88CNLHXMkTNwMKPnu",
+        "/ip6/2604:a880:800:10::4a:5001/tcp/4001/ipfs/QmSoLV4Bbm51jM9C4gDYZQ9Cy3U6aXMJDAbzgu2fzaDs64",
+        "/ip6/2a03:b0c0:0:1010::23:1001/tcp/4001/ipfs/QmSoLer265NRgSp2LA3dPaeykiS1J6DifTC88f5uVQKNAd"
+    };
+    [SerializeField] private bool upnpEnabled = true;
+    [SerializeField] private int highWater = 300;
+    [SerializeField] private int lowWater = 150;
+    [SerializeField] private string authorizedFullNode = "8a33bdf1445a68736429d1773be8682362753a0efc6fb9d8b3e8dffe3b74fc91e26b203fd521547a5219eddf1d3ac51fd17a7646c9bca5ef065da131add4e5a2";
 
     private static GeniusSDKWrapper instance;
     public static GeniusSDKWrapper Instance
@@ -329,11 +349,23 @@ public class GeniusSDKWrapper : MonoBehaviour
         }
     }
 
+    private bool IsActiveSingleton()
+    {
+        return instance == this;
+    }
+
     private IEnumerator InitGeniusSDK()
     {
         UnityEngine.Debug.Log("Initializing Genius SDK");
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!InitializeAndroidKeyStore())
+        {
+            yield break;
+        }
+#endif
         StringBuilder pathBuilder = new StringBuilder(UnityEngine.Application.persistentDataPath + "/", 1024);
         string destinationPath = Path.Combine(UnityEngine.Application.persistentDataPath, "dev_config.json");
+        string networkConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "network_config.json");
 
         UnityEngine.Debug.Log("dev_config.json not found. Creating a new one...");
         string jsonData = $@"{{
@@ -352,6 +384,18 @@ public class GeniusSDKWrapper : MonoBehaviour
         catch (Exception ex)
         {
             UnityEngine.Debug.LogError($"Error writing dev_config.json: {ex.Message}");
+            yield break;
+        }
+
+        string networkJsonData = BuildNetworkConfigJson();
+        try
+        {
+            File.WriteAllText(networkConfigPath, networkJsonData);
+            UnityEngine.Debug.Log("network_config.json created successfully.");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error writing network_config.json: {ex.Message}");
             yield break;
         }
 
@@ -383,6 +427,46 @@ public class GeniusSDKWrapper : MonoBehaviour
         yield return null;
     }
 
+    private static string EscapeJsonString(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return string.Empty;
+
+        return input
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\b", "\\b")
+            .Replace("\f", "\\f")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
+    }
+
+    private string BuildNetworkConfigJson()
+    {
+        var builder = new StringBuilder(1024);
+        builder.AppendLine("{");
+        builder.AppendLine($"  \"pubsub_port\": \"{EscapeJsonString(pubsubPort)}\",");
+        builder.AppendLine($"  \"pubsub_bind_address\": \"{EscapeJsonString(pubsubBindAddress)}\",");
+        builder.AppendLine("  \"bootstrap_addresses\": [");
+
+        for (int i = 0; i < bootstrapAddresses.Length; i++)
+        {
+            string entry = EscapeJsonString(bootstrapAddresses[i] ?? string.Empty);
+            string suffix = i < bootstrapAddresses.Length - 1 ? "," : string.Empty;
+            builder.AppendLine($"    \"{entry}\"{suffix}");
+        }
+
+        builder.AppendLine("  ],");
+        builder.AppendLine($"  \"upnp_enabled\": {upnpEnabled.ToString().ToLowerInvariant()},");
+        builder.AppendLine($"  \"high_water\": {highWater},");
+        builder.AppendLine($"  \"low_water\": {lowWater},");
+        builder.AppendLine($"  \"authorized_full_node\": \"{EscapeJsonString(authorizedFullNode)}\"");
+        builder.AppendLine("}");
+
+        return builder.ToString();
+    }
+
     // Public wrapper methods for all functions
     //Convert 0x token
     private GeniusTokenID ParseTokenId(string tokenid)
@@ -412,6 +496,10 @@ public class GeniusSDKWrapper : MonoBehaviour
     // Initialization wrappers
     public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort, bool is_full_node)
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!InitializeAndroidKeyStore())
+            return "Android KeyStore initialization failed";
+#endif
         var pathBuilder = new StringBuilder(basePath, 1024);
         var keyBuilder = new StringBuilder(privateKey, 1024);
         IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht, process, basePort, is_full_node);
@@ -420,11 +508,42 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     public string InitMinimalSDK(string basePath, string privateKey, ushort basePort)
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!InitializeAndroidKeyStore())
+            return "Android KeyStore initialization failed";
+#endif
         var pathBuilder = new StringBuilder(basePath, 1024);
         var keyBuilder = new StringBuilder(privateKey, 1024);
         IntPtr resultPtr = GeniusSDKInitMinimal(pathBuilder, keyBuilder, basePort);
         return Marshal.PtrToStringAnsi(resultPtr);
     }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private bool InitializeAndroidKeyStore()
+    {
+        if (androidKeyStoreInitialized)
+            return true;
+
+        try
+        {
+            using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (var context = activity.Call<AndroidJavaObject>("getApplicationContext"))
+            using (var keyStoreHelper = new AndroidJavaClass("ai.gnus.sdk.KeyStoreHelper"))
+            {
+                keyStoreHelper.CallStatic("initialize", context);
+                androidKeyStoreInitialized = true;
+                UnityEngine.Debug.Log("KeyStoreHelper initialized.");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Failed to initialize KeyStoreHelper: {ex.Message}");
+            return false;
+        }
+    }
+#endif
 
     public GeniusNodeReturnValue Shutdown()
     {
@@ -620,6 +739,7 @@ public class GeniusSDKWrapper : MonoBehaviour
     // Cleanup
     void OnApplicationQuit()
     {
+        if (!IsActiveSingleton()) return;
         if (isShutdown) return;
         isShutdown = true;
         UnityEngine.Debug.Log("Shutting down Genius SDK on application quit.");
@@ -632,6 +752,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     void OnDestroy()
     {
+        if (!IsActiveSingleton()) return;
         if (isShutdown) return;
         isShutdown = true;
         UnityEngine.Debug.Log("Shutting down Genius SDK on destroy.");
