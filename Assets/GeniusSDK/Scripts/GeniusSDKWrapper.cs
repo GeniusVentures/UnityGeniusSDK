@@ -343,7 +343,7 @@ public class GeniusSDKWrapper : MonoBehaviour
     [Serializable]
     public struct LoggerEntry
     {
-        public string name;
+        [HideInInspector] public string name;
         public LogLevel level;
     }
 
@@ -592,7 +592,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 
         for (int i = 0; i < loggerConfigs.Length; i++)
         {
-            string name = EscapeJsonString(loggerConfigs[i].name ?? string.Empty);
+            string name = EscapeJsonString(loggerConfigs[i].name);
             string level = loggerConfigs[i].level.ToString().ToLowerInvariant();
             string suffix = i < loggerConfigs.Length - 1 ? "," : string.Empty;
             builder.AppendLine($"        \"{name}\": \"{level}\"{suffix}");
