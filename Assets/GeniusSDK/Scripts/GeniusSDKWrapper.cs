@@ -305,7 +305,6 @@ public class GeniusSDKWrapper : MonoBehaviour
     [SerializeField] private string pubsubBindAddress = "";
     [SerializeField] private string[] bootstrapAddresses = new string[]
     {
-        "/dns4/sg-fullnode-1.gnus.ai/tcp/40102/ipfs/12D3KooWRqFHPFz6YptGnt4wLEGsNuWuv5TLN7rdQ9CFJcbHCWZC",
         "/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
         "/ip4/104.236.179.241/tcp/4001/ipfs/QmSoLPppuBtQSGwKDZT2M73ULpjvfd3aZ6ha4oFGL1KrGM",
         "/ip4/128.199.219.111/tcp/4001/ipfs/QmSoLSafTMBsPKadTEgaXctDQVcqN88CNLHXMkTNwMKPnu",
@@ -316,10 +315,79 @@ public class GeniusSDKWrapper : MonoBehaviour
         "/ip6/2604:a880:800:10::4a:5001/tcp/4001/ipfs/QmSoLV4Bbm51jM9C4gDYZQ9Cy3U6aXMJDAbzgu2fzaDs64",
         "/ip6/2a03:b0c0:0:1010::23:1001/tcp/4001/ipfs/QmSoLer265NRgSp2LA3dPaeykiS1J6DifTC88f5uVQKNAd"
     };
+
+    [SerializeField] private string[] bootstrapFullnodes = new string[]
+    {
+        "/dns4/sg-fullnode-1.gnus.ai/tcp/40102/ipfs/12D3KooWRqFHPFz6YptGnt4wLEGsNuWuv5TLN7rdQ9CFJcbHCWZC"
+    };
     [SerializeField] private bool upnpEnabled = true;
     [SerializeField] private int highWater = 300;
     [SerializeField] private int lowWater = 150;
     [SerializeField] private string authorizedFullNode = "8a33bdf1445a68736429d1773be8682362753a0efc6fb9d8b3e8dffe3b74fc91e26b203fd521547a5219eddf1d3ac51fd17a7646c9bca5ef065da131add4e5a2";
+    [SerializeField] private bool crdtBackupEnabled = true;
+    [SerializeField] private int crdtBackupIntervalMinutes = 15;
+    [SerializeField] private int crdtBackupKeepCount = 12;
+    [SerializeField] private bool crdtBackupAutoRestoreOnRepairFailure = true;
+
+    public enum LogLevel
+    {
+        trace,
+        debug,
+        info,
+        warn,
+        err,
+        critical,
+        off
+    }
+
+    [Serializable]
+    public struct LoggerEntry
+    {
+        public string name;
+        public LogLevel level;
+    }
+
+    [SerializeField] private LoggerEntry[] loggerConfigs = new LoggerEntry[]
+    {
+        new LoggerEntry { name = "SuperGeniusNode",                   level = LogLevel.trace },
+        new LoggerEntry { name = "GeniusNode",                        level = LogLevel.err },
+        new LoggerEntry { name = "GlobalDB",                          level = LogLevel.err },
+        new LoggerEntry { name = "GraphsyncDAGSyncer",                level = LogLevel.err },
+        new LoggerEntry { name = "graphsync",                         level = LogLevel.err },
+        new LoggerEntry { name = "PubSubBroadcasterExt",              level = LogLevel.err },
+        new LoggerEntry { name = "CrdtDatastore",                     level = LogLevel.err },
+        new LoggerEntry { name = "CrdtHeads",                         level = LogLevel.err },
+        new LoggerEntry { name = "TransactionManager",                level = LogLevel.err },
+        new LoggerEntry { name = "MigrationManager",                  level = LogLevel.err },
+        new LoggerEntry { name = "MigrationStep",                     level = LogLevel.err },
+        new LoggerEntry { name = "ProcessingTaskQueueImpl",           level = LogLevel.err },
+        new LoggerEntry { name = "rocksdb",                           level = LogLevel.err },
+        new LoggerEntry { name = "Kademlia",                          level = LogLevel.err },
+        new LoggerEntry { name = "Noise",                             level = LogLevel.err },
+        new LoggerEntry { name = "ProcessingEngine",                  level = LogLevel.err },
+        new LoggerEntry { name = "ProcessingSubTaskQueueAccessorImpl",level = LogLevel.err },
+        new LoggerEntry { name = "ProcessingService",                 level = LogLevel.err },
+        new LoggerEntry { name = "ProcessingSubTaskQueueManager",     level = LogLevel.err },
+        new LoggerEntry { name = "UPNP",                              level = LogLevel.err },
+        new LoggerEntry { name = "ProcessingNode",                    level = LogLevel.err },
+        new LoggerEntry { name = "GossipPubSub",                      level = LogLevel.err },
+        new LoggerEntry { name = "AccountMessenger",                  level = LogLevel.err },
+        new LoggerEntry { name = "GeniusAccount",                     level = LogLevel.err },
+        new LoggerEntry { name = "KeyPairFileStorage",                level = LogLevel.err },
+        new LoggerEntry { name = "Blockchain",                        level = LogLevel.err },
+        new LoggerEntry { name = "ValidatorRegistry",                 level = LogLevel.err },
+        new LoggerEntry { name = "SGProcessingManager",               level = LogLevel.err },
+        new LoggerEntry { name = "SGProcessor",                       level = LogLevel.err },
+        new LoggerEntry { name = "CRDTCallbackManager",               level = LogLevel.err },
+        new LoggerEntry { name = "CoinPrices",                        level = LogLevel.err },
+        new LoggerEntry { name = "FILECommon",                        level = LogLevel.err },
+        new LoggerEntry { name = "FileManager",                       level = LogLevel.err },
+        new LoggerEntry { name = "HTTPCommon",                        level = LogLevel.err },
+        new LoggerEntry { name = "IPFSCommon",                        level = LogLevel.err },
+        new LoggerEntry { name = "IPFSLoader",                        level = LogLevel.err },
+        new LoggerEntry { name = "MNNLoader",                         level = LogLevel.err },
+        new LoggerEntry { name = "WSCommon",                          level = LogLevel.err }
+    };
 
     private static GeniusSDKWrapper instance;
     public static GeniusSDKWrapper Instance
@@ -366,6 +434,8 @@ public class GeniusSDKWrapper : MonoBehaviour
         StringBuilder pathBuilder = new StringBuilder(UnityEngine.Application.persistentDataPath + "/", 1024);
         string destinationPath = Path.Combine(UnityEngine.Application.persistentDataPath, "dev_config.json");
         string networkConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "network_config.json");
+        string crdtConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "crdt_config.json");
+        string logConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "log_config.json");
 
         UnityEngine.Debug.Log("dev_config.json not found. Creating a new one...");
         string jsonData = $@"{{
@@ -396,6 +466,30 @@ public class GeniusSDKWrapper : MonoBehaviour
         catch (Exception ex)
         {
             UnityEngine.Debug.LogError($"Error writing network_config.json: {ex.Message}");
+            yield break;
+        }
+
+        string crdtJsonData = BuildCrdtConfigJson();
+        try
+        {
+            File.WriteAllText(crdtConfigPath, crdtJsonData);
+            UnityEngine.Debug.Log("crdt_config.json created successfully.");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error writing crdt_config.json: {ex.Message}");
+            yield break;
+        }
+
+        string logJsonData = BuildLogConfigJson();
+        try
+        {
+            File.WriteAllText(logConfigPath, logJsonData);
+            UnityEngine.Debug.Log("log_config.json created successfully.");
+        }
+        catch (Exception ex)
+        {
+            UnityEngine.Debug.LogError($"Error writing log_config.json: {ex.Message}");
             yield break;
         }
 
@@ -458,10 +552,53 @@ public class GeniusSDKWrapper : MonoBehaviour
         }
 
         builder.AppendLine("  ],");
+        builder.AppendLine("  \"bootstrap_fullnodes\": [");
+
+        for (int i = 0; i < bootstrapFullnodes.Length; i++)
+        {
+            string entry = EscapeJsonString(bootstrapFullnodes[i] ?? string.Empty);
+            string suffix = i < bootstrapFullnodes.Length - 1 ? "," : string.Empty;
+            builder.AppendLine($"    \"{entry}\"{suffix}");
+        }
+
+        builder.AppendLine("  ],");
         builder.AppendLine($"  \"upnp_enabled\": {upnpEnabled.ToString().ToLowerInvariant()},");
         builder.AppendLine($"  \"high_water\": {highWater},");
         builder.AppendLine($"  \"low_water\": {lowWater},");
         builder.AppendLine($"  \"authorized_full_node\": \"{EscapeJsonString(authorizedFullNode)}\"");
+        builder.AppendLine("}");
+
+        return builder.ToString();
+    }
+
+    private string BuildCrdtConfigJson()
+    {
+        var builder = new StringBuilder(512);
+        builder.AppendLine("{");
+        builder.AppendLine($"  \"backup_enabled\": {crdtBackupEnabled.ToString().ToLowerInvariant()},");
+        builder.AppendLine($"  \"backup_interval_minutes\": {crdtBackupIntervalMinutes},");
+        builder.AppendLine($"  \"backup_keep_count\": {crdtBackupKeepCount},");
+        builder.AppendLine($"  \"backup_auto_restore_on_repair_failure\": {crdtBackupAutoRestoreOnRepairFailure.ToString().ToLowerInvariant()}");
+        builder.AppendLine("}");
+
+        return builder.ToString();
+    }
+
+    private string BuildLogConfigJson()
+    {
+        var builder = new StringBuilder(2048);
+        builder.AppendLine("{");
+        builder.AppendLine("    \"loggers\": {");
+
+        for (int i = 0; i < loggerConfigs.Length; i++)
+        {
+            string name = EscapeJsonString(loggerConfigs[i].name ?? string.Empty);
+            string level = loggerConfigs[i].level.ToString().ToLowerInvariant();
+            string suffix = i < loggerConfigs.Length - 1 ? "," : string.Empty;
+            builder.AppendLine($"        \"{name}\": \"{level}\"{suffix}");
+        }
+
+        builder.AppendLine("    }");
         builder.AppendLine("}");
 
         return builder.ToString();
