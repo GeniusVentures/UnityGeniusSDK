@@ -475,28 +475,20 @@ public class GeniusSDKWrapper : MonoBehaviour
         }
 #endif
         StringBuilder pathBuilder = new StringBuilder(UnityEngine.Application.persistentDataPath + "/", 1024);
-        string destinationPath = Path.Combine(UnityEngine.Application.persistentDataPath, "dev_config.json");
+        string sgnsConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "sgns_config.json");
         string networkConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "network_config.json");
         string crdtConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "crdt_config.json");
         string logConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "log_config.json");
 
-        UnityEngine.Debug.Log("dev_config.json not found. Creating a new one...");
-        string jsonData = $@"{{
-    ""Address"": ""{address}"",
-    ""Cut"": ""{cut}"",
-    ""TokenValue"": ""{tokenValue:F5}"",
-    ""TokenID"": ""{tokenID}"",
-    ""WriteDirectory"": """"
-}}";
-
+        string sgnsJsonData = BuildSgnsConfigJson();
         try
         {
-            File.WriteAllText(destinationPath, jsonData);
-            UnityEngine.Debug.Log("dev_config.json created successfully.");
+            File.WriteAllText(sgnsConfigPath, sgnsJsonData);
+            UnityEngine.Debug.Log("sgns_config.json created successfully.");
         }
         catch (Exception ex)
         {
-            UnityEngine.Debug.LogError($"Error writing dev_config.json: {ex.Message}");
+            UnityEngine.Debug.LogError($"Error writing sgns_config.json: {ex.Message}");
             yield break;
         }
 
@@ -536,22 +528,44 @@ public class GeniusSDKWrapper : MonoBehaviour
             yield break;
         }
 
-        byte[] keyBytes = new byte[32];
-        using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
-        {
-            rng.GetBytes(keyBytes);
-        }
-        StringBuilder keyBuilder = new StringBuilder(64);
-        foreach (byte b in keyBytes)
-        {
-            keyBuilder.Append(b.ToString("x2"));
-        }
-        StringBuilder key = new StringBuilder(keyBuilder.ToString(), 1024);
-
         UnityEngine.Debug.Log("Try to init SDK");
-        // TODO: Replace with new GeniusSDKInit(basePath, devConfig) call (future plan)
-        UnityEngine.Debug.Log("GeniusSDK init deferred — new init API not yet wired");
-        yield return null;
+
+        string devConfigJson = $@"{{
+    ""Address"": ""{address}"",
+    ""Cut"": ""{cut}"",
+    ""TokenValue"": ""{tokenValue:F5}"",
+    ""TokenID"": ""{tokenID}"",
+    ""WriteDirectory"": """"
+}}";
+
+        IntPtr resultPtr = GeniusSDKInit(pathBuilder.ToString(), devConfigJson);
+        if (resultPtr == IntPtr.Zero)
+        {
+            UnityEngine.Debug.LogError("GeniusSDKInit returned null — initialization failed");
+            yield break;
+        }
+
+        string initPath = Marshal.PtrToStringAnsi(resultPtr);
+        UnityEngine.Debug.Log($"GeniusSDKInit returned: {initPath}");
+
+        while (!isReady)
+        {
+            GeniusStatusInfo status = GeniusSDKGetInitializationStatus();
+            if (status.percentage >= 1.0f)
+            {
+                isReady = true;
+            }
+            if (status.message != IntPtr.Zero)
+            {
+                string msg = Marshal.PtrToStringAnsi(status.message);
+                UnityEngine.Debug.Log("SDK Init: " + msg + " (" + (status.percentage * 100f) + "%)");
+                GeniusSDKFree(status.message);
+            }
+            if (!isReady)
+            {
+                yield return new WaitForSecondsRealtime(0.5f);
+            }
+        }
     }
 
     private static string EscapeJsonString(string input)
@@ -571,20 +585,22 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     private string BuildNetworkConfigJson()
     {
+        var builder = new StringBuilder(256);
+        builder.AppendLine("{");
+        builder.AppendLine("  \"port_seed\": 42001,");
+        builder.AppendLine("  \"auto_dht\": true");
+        builder.AppendLine("}");
+
+        return builder.ToString();
+    }
+
+    private string BuildSgnsConfigJson()
+    {
         var builder = new StringBuilder(1024);
         builder.AppendLine("{");
-        builder.AppendLine($"  \"pubsub_port\": \"{EscapeJsonString(pubsubPort)}\",");
-        builder.AppendLine($"  \"pubsub_bind_address\": \"{EscapeJsonString(pubsubBindAddress)}\",");
-        builder.AppendLine("  \"bootstrap_addresses\": [");
-
-        for (int i = 0; i < bootstrapAddresses.Length; i++)
-        {
-            string entry = EscapeJsonString(bootstrapAddresses[i] ?? string.Empty);
-            string suffix = i < bootstrapAddresses.Length - 1 ? "," : string.Empty;
-            builder.AppendLine($"    \"{entry}\"{suffix}");
-        }
-
-        builder.AppendLine("  ],");
+        builder.AppendLine("  \"is_processor\": true,");
+        builder.AppendLine("  \"node_type\": \"Light\",");
+        builder.AppendLine($"  \"authorized_full_node\": \"{EscapeJsonString(authorizedFullNode)}\",");
         builder.AppendLine("  \"bootstrap_fullnodes\": [");
 
         for (int i = 0; i < bootstrapFullnodes.Length; i++)
@@ -594,11 +610,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             builder.AppendLine($"    \"{entry}\"{suffix}");
         }
 
-        builder.AppendLine("  ],");
-        builder.AppendLine($"  \"upnp_enabled\": {upnpEnabled.ToString().ToLowerInvariant()},");
-        builder.AppendLine($"  \"high_water\": {highWater},");
-        builder.AppendLine($"  \"low_water\": {lowWater},");
-        builder.AppendLine($"  \"authorized_full_node\": \"{EscapeJsonString(authorizedFullNode)}\"");
+        builder.AppendLine("  ]");
         builder.AppendLine("}");
 
         return builder.ToString();
@@ -663,7 +675,52 @@ public class GeniusSDKWrapper : MonoBehaviour
         get { return tokenID; }
         set { tokenID = value; }
     }
-    // Initialization wrappers (old wrappers removed; new wrappers added in future plan)
+
+    public string Initialize(string basePath, string devConfigJson)
+    {
+        IntPtr resultPtr = GeniusSDKInit(basePath, devConfigJson);
+        if (resultPtr == IntPtr.Zero)
+        {
+            UnityEngine.Debug.LogError("Initialize failed — GeniusSDKInit returned null");
+            return null;
+        }
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public string InitializeWithKey(string basePath, string devConfigJson, string ethPrivateKey)
+    {
+        IntPtr resultPtr = GeniusSDKInitWithKey(basePath, devConfigJson, ethPrivateKey);
+        if (resultPtr == IntPtr.Zero)
+        {
+            UnityEngine.Debug.LogError("InitializeWithKey failed — GeniusSDKInitWithKey returned null");
+            return null;
+        }
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public string InitializeWithMnemonic(string basePath, string devConfigJson, string mnemonic)
+    {
+        IntPtr resultPtr = GeniusSDKInitWithMnemonic(basePath, devConfigJson, mnemonic);
+        if (resultPtr == IntPtr.Zero)
+        {
+            UnityEngine.Debug.LogError("InitializeWithMnemonic failed — GeniusSDKInitWithMnemonic returned null");
+            return null;
+        }
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public void Free(IntPtr ptr)
+    {
+        if (ptr != IntPtr.Zero)
+        {
+            GeniusSDKFree(ptr);
+        }
+    }
+
+    public void LoadLogConfig()
+    {
+        GeniusSDKLoadLogConfig();
+    }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
     private bool InitializeAndroidKeyStore()
