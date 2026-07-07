@@ -100,6 +100,28 @@ public class GeniusSDKWrapper : MonoBehaviour
         public float percentage;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeniusStatusInfo
+    {
+        public float percentage;
+        public IntPtr message;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct GeniusMnemonic
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 216)]
+        public string mnemonic;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct GeniusMnemonicAndStatus
+    {
+        public int status;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 216)]
+        public string mnemonic;
+    }
+
     // DLL Import declarations for all functions in order
 
     // Initialization functions
@@ -108,21 +130,42 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, bool autodht, bool process, ushort baseport, bool is_full_node);
+    private static extern IntPtr GeniusSDKInit(string basePath, string devConfig);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, bool autodht, bool process, ushort baseport, bool is_full_node);
+    private static extern IntPtr GeniusSDKInitWithKey(string basePath, string devConfig, string ethPrivateKey);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitMinimal(StringBuilder base_path, StringBuilder eth_private_key, ushort baseport);
+    private static extern IntPtr GeniusSDKInitWithMnemonic(string basePath, string devConfig, string mnemonic);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusStatusInfo GeniusSDKGetInitializationStatus();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKFree(IntPtr ptr);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKLoadLogConfig();
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -506,18 +549,8 @@ public class GeniusSDKWrapper : MonoBehaviour
         StringBuilder key = new StringBuilder(keyBuilder.ToString(), 1024);
 
         UnityEngine.Debug.Log("Try to init SDK");
-        try
-        {
-            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, true, true, 42001, false);
-            string result = Marshal.PtrToStringAnsi(resultPtr);
-            UnityEngine.Debug.Log($"GeniusSDKInit returned: {result}");
-            isReady = true;
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error initializing Genius SDK: {ex.Message}");
-        }
-
+        // TODO: Replace with new GeniusSDKInit(basePath, devConfig) call (future plan)
+        UnityEngine.Debug.Log("GeniusSDK init deferred — new init API not yet wired");
         yield return null;
     }
 
@@ -630,30 +663,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         get { return tokenID; }
         set { tokenID = value; }
     }
-    // Initialization wrappers
-    public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort, bool is_full_node)
-    {
-#if UNITY_ANDROID && !UNITY_EDITOR
-        if (!InitializeAndroidKeyStore())
-            return "Android KeyStore initialization failed";
-#endif
-        var pathBuilder = new StringBuilder(basePath, 1024);
-        var keyBuilder = new StringBuilder(privateKey, 1024);
-        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht, process, basePort, is_full_node);
-        return Marshal.PtrToStringAnsi(resultPtr);
-    }
-
-    public string InitMinimalSDK(string basePath, string privateKey, ushort basePort)
-    {
-#if UNITY_ANDROID && !UNITY_EDITOR
-        if (!InitializeAndroidKeyStore())
-            return "Android KeyStore initialization failed";
-#endif
-        var pathBuilder = new StringBuilder(basePath, 1024);
-        var keyBuilder = new StringBuilder(privateKey, 1024);
-        IntPtr resultPtr = GeniusSDKInitMinimal(pathBuilder, keyBuilder, basePort);
-        return Marshal.PtrToStringAnsi(resultPtr);
-    }
+    // Initialization wrappers (old wrappers removed; new wrappers added in future plan)
 
 #if UNITY_ANDROID && !UNITY_EDITOR
     private bool InitializeAndroidKeyStore()
