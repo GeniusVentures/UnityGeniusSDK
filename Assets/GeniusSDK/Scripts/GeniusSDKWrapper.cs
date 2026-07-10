@@ -174,6 +174,35 @@ public class GeniusSDKWrapper : MonoBehaviour
 #endif
     private static extern GeniusNodeReturnValue GeniusSDKShutdown();
 
+    // Account management functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern IntPtr GeniusSDKGetAvailableAccounts();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKAddAccountWithMnemonic(string mnemonic);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKSelectGeniusAccount(string publicAddress);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKSetPayoutAddress(string publicAddress);
+
     // Balance and price functions
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -452,7 +481,6 @@ public class GeniusSDKWrapper : MonoBehaviour
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
-            StartCoroutine(InitGeniusSDK());
         }
         else
         {
@@ -465,7 +493,7 @@ public class GeniusSDKWrapper : MonoBehaviour
         return instance == this;
     }
 
-    private IEnumerator InitGeniusSDK()
+    private IEnumerator InitGeniusSDK(string basePath, string devConfigJson, string mnemonic)
     {
         UnityEngine.Debug.Log("Initializing Genius SDK");
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -474,11 +502,10 @@ public class GeniusSDKWrapper : MonoBehaviour
             yield break;
         }
 #endif
-        StringBuilder pathBuilder = new StringBuilder(UnityEngine.Application.persistentDataPath + "/", 1024);
-        string sgnsConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "sgns_config.json");
-        string networkConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "network_config.json");
-        string crdtConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "crdt_config.json");
-        string logConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "log_config.json");
+        string sgnsConfigPath = Path.Combine(basePath, "sgns_config.json");
+        string networkConfigPath = Path.Combine(basePath, "network_config.json");
+        string crdtConfigPath = Path.Combine(basePath, "crdt_config.json");
+        string logConfigPath = Path.Combine(basePath, "log_config.json");
 
         string sgnsJsonData = BuildSgnsConfigJson();
         try
@@ -530,7 +557,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 
         UnityEngine.Debug.Log("Try to init SDK");
 
-        string devConfigJson = $@"{{
+        string inlineDevConfig = $@"{{
     ""Address"": ""{address}"",
     ""Cut"": ""{cut}"",
     ""TokenValue"": ""{tokenValue:F5}"",
@@ -538,15 +565,25 @@ public class GeniusSDKWrapper : MonoBehaviour
     ""WriteDirectory"": """"
 }}";
 
-        IntPtr resultPtr = GeniusSDKInit(pathBuilder.ToString(), devConfigJson);
+        string configJson = string.IsNullOrEmpty(devConfigJson) ? inlineDevConfig : devConfigJson;
+        IntPtr resultPtr;
+        if (string.IsNullOrEmpty(mnemonic))
+        {
+            resultPtr = GeniusSDKInit(basePath, configJson);
+        }
+        else
+        {
+            resultPtr = GeniusSDKInitWithMnemonic(basePath, configJson, mnemonic);
+        }
+
         if (resultPtr == IntPtr.Zero)
         {
-            UnityEngine.Debug.LogError("GeniusSDKInit returned null — initialization failed");
+            UnityEngine.Debug.LogError("GeniusSDK init returned null — initialization failed");
             yield break;
         }
 
         string initPath = Marshal.PtrToStringAnsi(resultPtr);
-        UnityEngine.Debug.Log($"GeniusSDKInit returned: {initPath}");
+        UnityEngine.Debug.Log($"GeniusSDK init returned: {initPath}");
 
         while (!isReady)
         {
@@ -676,37 +713,14 @@ public class GeniusSDKWrapper : MonoBehaviour
         set { tokenID = value; }
     }
 
-    public string Initialize(string basePath, string devConfigJson)
+    public void BeginInitialize(string basePath)
     {
-        IntPtr resultPtr = GeniusSDKInit(basePath, devConfigJson);
-        if (resultPtr == IntPtr.Zero)
-        {
-            UnityEngine.Debug.LogError("Initialize failed — GeniusSDKInit returned null");
-            return null;
-        }
-        return Marshal.PtrToStringAnsi(resultPtr);
+        StartCoroutine(InitGeniusSDK(basePath, null, null));
     }
 
-    public string InitializeWithKey(string basePath, string devConfigJson, string ethPrivateKey)
+    public void BeginInitializeWithMnemonic(string basePath, string mnemonic)
     {
-        IntPtr resultPtr = GeniusSDKInitWithKey(basePath, devConfigJson, ethPrivateKey);
-        if (resultPtr == IntPtr.Zero)
-        {
-            UnityEngine.Debug.LogError("InitializeWithKey failed — GeniusSDKInitWithKey returned null");
-            return null;
-        }
-        return Marshal.PtrToStringAnsi(resultPtr);
-    }
-
-    public string InitializeWithMnemonic(string basePath, string devConfigJson, string mnemonic)
-    {
-        IntPtr resultPtr = GeniusSDKInitWithMnemonic(basePath, devConfigJson, mnemonic);
-        if (resultPtr == IntPtr.Zero)
-        {
-            UnityEngine.Debug.LogError("InitializeWithMnemonic failed — GeniusSDKInitWithMnemonic returned null");
-            return null;
-        }
-        return Marshal.PtrToStringAnsi(resultPtr);
+        StartCoroutine(InitGeniusSDK(basePath, null, mnemonic));
     }
 
     public void Free(IntPtr ptr)
@@ -720,6 +734,11 @@ public class GeniusSDKWrapper : MonoBehaviour
     public void LoadLogConfig()
     {
         GeniusSDKLoadLogConfig();
+    }
+
+    public GeniusStatusInfo GetInitializationStatus()
+    {
+        return GeniusSDKGetInitializationStatus();
     }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -754,6 +773,31 @@ public class GeniusSDKWrapper : MonoBehaviour
         var result = GeniusSDKShutdown();
         isShutdown = true;
         return result;
+    }
+
+    public string GetAvailableAccounts()
+    {
+        IntPtr resultPtr = GeniusSDKGetAvailableAccounts();
+        if (resultPtr == IntPtr.Zero)
+        {
+            return null;
+        }
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public GeniusNodeReturnValue AddAccountWithMnemonic(string mnemonic)
+    {
+        return GeniusSDKAddAccountWithMnemonic(mnemonic);
+    }
+
+    public GeniusNodeReturnValue SelectGeniusAccount(string publicAddress)
+    {
+        return GeniusSDKSelectGeniusAccount(publicAddress);
+    }
+
+    public GeniusNodeReturnValue SetPayoutAddress(string publicAddress)
+    {
+        return GeniusSDKSetPayoutAddress(publicAddress);
     }
 
     // Balance and price wrappers
