@@ -20,6 +20,19 @@ public class GeniusSDKWalletPanel : MonoBehaviour
 	[Header("Status")]
 	[SerializeField] private Text textStatus;
 
+	private bool listenersBound;
+
+	public void Initialize(Text textAddress, InputField inputPayoutAddress, Button btnSetPayout, InputField inputMnemonic, Button btnAddMnemonic, Text textStatus)
+	{
+		this.textAddress = textAddress;
+		this.inputPayoutAddress = inputPayoutAddress;
+		this.btnSetPayout = btnSetPayout;
+		this.inputMnemonic = inputMnemonic;
+		this.btnAddMnemonic = btnAddMnemonic;
+		this.textStatus = textStatus;
+		this.BindButtons();
+	}
+
 	public void Show()
 	{
 		this.gameObject.SetActive(true);
@@ -33,12 +46,28 @@ public class GeniusSDKWalletPanel : MonoBehaviour
 
 	private void Start()
 	{
+		this.BindButtons();
+	}
+
+	private void BindButtons()
+	{
+		if (this.listenersBound || this.btnSetPayout == null || this.btnAddMnemonic == null)
+		{
+			return;
+		}
+
+		this.listenersBound = true;
 		this.btnSetPayout.onClick.AddListener(this.OnSetPayout);
 		this.btnAddMnemonic.onClick.AddListener(this.OnAddMnemonic);
 	}
 
 	private void Refresh()
 	{
+		if (this.textAddress == null)
+		{
+			return;
+		}
+
 		try
 		{
 			GeniusSDKWrapper.GeniusAddress addr = GeniusSDKWrapper.Instance.GetAddress();
@@ -59,6 +88,11 @@ public class GeniusSDKWalletPanel : MonoBehaviour
 
 	private void OnSetPayout()
 	{
+		if (this.inputPayoutAddress == null || this.textStatus == null)
+		{
+			return;
+		}
+
 		string address = this.inputPayoutAddress.text.Trim();
 		if (string.IsNullOrEmpty(address))
 		{
@@ -74,6 +108,11 @@ public class GeniusSDKWalletPanel : MonoBehaviour
 
 	private void OnAddMnemonic()
 	{
+		if (this.inputMnemonic == null || this.textStatus == null)
+		{
+			return;
+		}
+
 		string mnemonic = this.inputMnemonic.text.Trim();
 		if (string.IsNullOrEmpty(mnemonic))
 		{

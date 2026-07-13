@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -367,6 +368,7 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     // Instance management
     private bool isReady = false;
+    private bool isInitializing = false;
     private bool isShutdown = false;
     private static bool androidKeyStoreInitialized = false;
     [SerializeField] private string address = "0xcatcatcat";
@@ -493,12 +495,31 @@ public class GeniusSDKWrapper : MonoBehaviour
         return instance == this;
     }
 
+    private class NativeInitResult
+    {
+        public IntPtr resultPtr;
+        public string errorMessage;
+    }
+
     private IEnumerator InitGeniusSDK(string basePath, string devConfigJson, string mnemonic)
     {
+        if (isReady)
+        {
+            yield break;
+        }
+
+        if (isInitializing)
+        {
+            UnityEngine.Debug.Log("Genius SDK initialization is already running.");
+            yield break;
+        }
+
+        isInitializing = true;
         UnityEngine.Debug.Log("Initializing Genius SDK");
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (!InitializeAndroidKeyStore())
         {
+            isInitializing = false;
             yield break;
         }
 #endif
@@ -508,54 +529,11 @@ public class GeniusSDKWrapper : MonoBehaviour
         string logConfigPath = Path.Combine(basePath, "log_config.json");
 
         string sgnsJsonData = BuildSgnsConfigJson();
-        try
-        {
-            File.WriteAllText(sgnsConfigPath, sgnsJsonData);
-            UnityEngine.Debug.Log("sgns_config.json created successfully.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error writing sgns_config.json: {ex.Message}");
-            yield break;
-        }
-
         string networkJsonData = BuildNetworkConfigJson();
-        try
-        {
-            File.WriteAllText(networkConfigPath, networkJsonData);
-            UnityEngine.Debug.Log("network_config.json created successfully.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error writing network_config.json: {ex.Message}");
-            yield break;
-        }
-
         string crdtJsonData = BuildCrdtConfigJson();
-        try
-        {
-            File.WriteAllText(crdtConfigPath, crdtJsonData);
-            UnityEngine.Debug.Log("crdt_config.json created successfully.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error writing crdt_config.json: {ex.Message}");
-            yield break;
-        }
-
         string logJsonData = BuildLogConfigJson();
-        try
-        {
-            File.WriteAllText(logConfigPath, logJsonData);
-            UnityEngine.Debug.Log("log_config.json created successfully.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error writing log_config.json: {ex.Message}");
-            yield break;
-        }
 
-        UnityEngine.Debug.Log("Try to init SDK");
+        UnityEngine.Debug.Log("Starting Genius SDK native init in background.");
 
         string inlineDevConfig = $@"{{
     ""Address"": ""{address}"",
@@ -566,23 +544,47 @@ public class GeniusSDKWrapper : MonoBehaviour
 }}";
 
         string configJson = string.IsNullOrEmpty(devConfigJson) ? inlineDevConfig : devConfigJson;
-        IntPtr resultPtr;
-        if (string.IsNullOrEmpty(mnemonic))
+        Task<NativeInitResult> initTask = Task.Run(() => RunNativeInit(
+            basePath,
+            configJson,
+            mnemonic,
+            sgnsConfigPath,
+            sgnsJsonData,
+            networkConfigPath,
+            networkJsonData,
+            crdtConfigPath,
+            crdtJsonData,
+            logConfigPath,
+            logJsonData));
+
+        while (!initTask.IsCompleted)
         {
-            resultPtr = GeniusSDKInit(basePath, configJson);
-        }
-        else
-        {
-            resultPtr = GeniusSDKInitWithMnemonic(basePath, configJson, mnemonic);
+            yield return null;
         }
 
-        if (resultPtr == IntPtr.Zero)
+        if (initTask.IsFaulted)
         {
+            isInitializing = false;
+            UnityEngine.Debug.LogError("GeniusSDK native init task failed: " + initTask.Exception);
+            yield break;
+        }
+
+        NativeInitResult initResult = initTask.Result;
+        if (!string.IsNullOrEmpty(initResult.errorMessage))
+        {
+            isInitializing = false;
+            UnityEngine.Debug.LogError(initResult.errorMessage);
+            yield break;
+        }
+
+        if (initResult.resultPtr == IntPtr.Zero)
+        {
+            isInitializing = false;
             UnityEngine.Debug.LogError("GeniusSDK init returned null — initialization failed");
             yield break;
         }
 
-        string initPath = Marshal.PtrToStringAnsi(resultPtr);
+        string initPath = Marshal.PtrToStringAnsi(initResult.resultPtr);
         UnityEngine.Debug.Log($"GeniusSDK init returned: {initPath}");
 
         while (!isReady)
@@ -602,6 +604,40 @@ public class GeniusSDKWrapper : MonoBehaviour
             {
                 yield return new WaitForSecondsRealtime(0.5f);
             }
+        }
+
+        isInitializing = false;
+    }
+
+    private static NativeInitResult RunNativeInit(
+        string basePath,
+        string configJson,
+        string mnemonic,
+        string sgnsConfigPath,
+        string sgnsJsonData,
+        string networkConfigPath,
+        string networkJsonData,
+        string crdtConfigPath,
+        string crdtJsonData,
+        string logConfigPath,
+        string logJsonData)
+    {
+        try
+        {
+            File.WriteAllText(sgnsConfigPath, sgnsJsonData);
+            File.WriteAllText(networkConfigPath, networkJsonData);
+            File.WriteAllText(crdtConfigPath, crdtJsonData);
+            File.WriteAllText(logConfigPath, logJsonData);
+
+            IntPtr resultPtr = string.IsNullOrEmpty(mnemonic)
+                ? GeniusSDKInit(basePath, configJson)
+                : GeniusSDKInitWithMnemonic(basePath, configJson, mnemonic);
+
+            return new NativeInitResult { resultPtr = resultPtr };
+        }
+        catch (Exception ex)
+        {
+            return new NativeInitResult { errorMessage = "GeniusSDK native init failed: " + ex.Message };
         }
     }
 
