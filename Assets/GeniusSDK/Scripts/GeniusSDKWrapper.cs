@@ -27,7 +27,14 @@ public class GeniusSDKWrapper : MonoBehaviour
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct GeniusAddress
     {
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 67)] // 2 + 256/4 + 1
+        // 131 = GENIUS_SDK_ADDRESS_SIZE + 1, where the header defines
+        // GENIUS_SDK_ADDRESS_SIZE = 2 + 128 ("0x" + 128 hex characters).
+        //
+        // This was 67, which is half the size native actually returns. The struct is
+        // marshaled by value, so an undersized buffer silently truncates GetAddress() and
+        // corrupts both Transfer overloads -- and it does so quietly, producing an address
+        // that still looks like an address. Do not "simplify" this back.
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 131)]
         public string address;
     }
 
@@ -369,6 +376,17 @@ public class GeniusSDKWrapper : MonoBehaviour
     // Instance management
     private bool isReady = false;
     private bool isInitializing = false;
+
+    // True as soon as GeniusSDKInit has returned an init path -- i.e. the native node object
+    // exists, and the account with it. This is NOT the same thing as isReady, which only flips
+    // at 100%.
+    //
+    // The distinction matters. GetInitializationStatus tracks node bring-up, most of which is
+    // blockchain sync, and a node that cannot reach a full node parks partway through it
+    // indefinitely. Calls that only need an account must not wait for a readiness that may
+    // never arrive.
+    private bool isInitialized = false;
+
     private bool isShutdown = false;
     private static bool androidKeyStoreInitialized = false;
     [SerializeField] private string address = "0xcatcatcat";
@@ -587,6 +605,10 @@ public class GeniusSDKWrapper : MonoBehaviour
         string initPath = Marshal.PtrToStringAnsi(initResult.resultPtr);
         UnityEngine.Debug.Log($"GeniusSDK init returned: {initPath}");
 
+        // The node object exists from here on, and the account with it. Everything below is
+        // bring-up progress, not existence.
+        isInitialized = true;
+
         while (!isReady)
         {
             GeniusStatusInfo status = GeniusSDKGetInitializationStatus();
@@ -749,8 +771,24 @@ public class GeniusSDKWrapper : MonoBehaviour
         set { tokenID = value; }
     }
 
+    /// <summary>
+    /// Starts the SDK, at most once for the lifetime of the process.
+    ///
+    /// The once-only rule lives HERE rather than in each caller. This wrapper is a
+    /// DontDestroyOnLoad singleton, but its callers are ordinary scene components that are
+    /// recreated on every scene load, so each of them believes it is the first -- and a second
+    /// GeniusSDKInit against a live node is not something to discover the hard way.
+    ///
+    /// Returns immediately: the blocking native call runs on a thread-pool thread and the
+    /// coroutine polls the Task, so the game keeps rendering throughout.
+    /// </summary>
     public void BeginInitialize(string basePath)
     {
+        if (isInitialized || isInitializing)
+        {
+            return;
+        }
+
         StartCoroutine(InitGeniusSDK(basePath, null, null));
     }
 
@@ -1019,6 +1057,42 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     // Properties
     public bool IsReady => isReady;
+
+    /// <summary>
+    /// True once GeniusSDKInit has returned, i.e. the node and its account exist. Reached long
+    /// before <see cref="IsReady"/>, which requires 100% and therefore a synced blockchain.
+    /// </summary>
+    public bool IsInitialized => isInitialized;
+
+    /// <summary>
+    /// True once the node is past database migration and database init — the point at which
+    /// account-scoped calls such as SetPayoutAddress become SAFE TO CALL AT ALL.
+    ///
+    /// This is not a convenience. Calling SetPayoutAddress while the node is in
+    /// MIGRATING_DATABASE returns GENIUS_NODE_RET_OK and then kills the process with an access
+    /// violation on one of the SDK's own background threads, seconds later. The return code
+    /// gives no warning whatsoever. Established by driving the shipped DLL directly:
+    ///
+    ///   state 1 MIGRATING_DATABASE      (10%)  -> returns OK, then CRASHES within 5s
+    ///   state 3 INITIALIZING_PROCESSING (52%)  -> returns OK, node stays healthy
+    ///   never called (control)                 -> healthy
+    ///
+    /// Gate on this, NOT on the return code and NOT on IsReady: a node that cannot reach a
+    /// full node parks at INITIALIZING_PROCESSING and may never reach READY, so waiting for
+    /// readiness makes these calls impossible in exactly the environment we develop in.
+    /// </summary>
+    public bool IsSafeForAccountCalls
+    {
+        get
+        {
+            if (!isInitialized)
+            {
+                return false;
+            }
+
+            return GeniusSDKGetNodeState() >= GeniusNodeState.GENIUS_NODE_INITIALIZING_PROCESSING;
+        }
+    }
 
     // Cleanup
     void OnApplicationQuit()
