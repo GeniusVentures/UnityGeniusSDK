@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -26,7 +27,14 @@ public class GeniusSDKWrapper : MonoBehaviour
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct GeniusAddress
     {
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 67)] // 2 + 256/4 + 1
+        // 131 = GENIUS_SDK_ADDRESS_SIZE + 1, where the header defines
+        // GENIUS_SDK_ADDRESS_SIZE = 2 + 128 ("0x" + 128 hex characters).
+        //
+        // This was 67, which is half the size native actually returns. The struct is
+        // marshaled by value, so an undersized buffer silently truncates GetAddress() and
+        // corrupts both Transfer overloads -- and it does so quietly, producing an address
+        // that still looks like an address. Do not "simplify" this back.
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 131)]
         public string address;
     }
 
@@ -100,6 +108,28 @@ public class GeniusSDKWrapper : MonoBehaviour
         public float percentage;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeniusStatusInfo
+    {
+        public float percentage;
+        public IntPtr message;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct GeniusMnemonic
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 216)]
+        public string mnemonic;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct GeniusMnemonicAndStatus
+    {
+        public int status;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 216)]
+        public string mnemonic;
+    }
+
     // DLL Import declarations for all functions in order
 
     // Initialization functions
@@ -108,21 +138,42 @@ public class GeniusSDKWrapper : MonoBehaviour
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInit(StringBuilder base_path, StringBuilder eth_private_key, bool autodht, bool process, ushort baseport, bool is_full_node);
+    private static extern IntPtr GeniusSDKInit(string basePath, string devConfig);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitSecure(StringBuilder base_path, string dev_config, StringBuilder eth_private_key, bool autodht, bool process, ushort baseport, bool is_full_node);
+    private static extern IntPtr GeniusSDKInitWithKey(string basePath, string devConfig, string ethPrivateKey);
 
 #if UNITY_IOS
     [DllImport("__Internal")]
 #else
     [DllImport("GeniusSDK")]
 #endif
-    private static extern IntPtr GeniusSDKInitMinimal(StringBuilder base_path, StringBuilder eth_private_key, ushort baseport);
+    private static extern IntPtr GeniusSDKInitWithMnemonic(string basePath, string devConfig, string mnemonic);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusStatusInfo GeniusSDKGetInitializationStatus();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKFree(IntPtr ptr);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern void GeniusSDKLoadLogConfig();
 
 #if UNITY_IOS
     [DllImport("__Internal")]
@@ -130,6 +181,35 @@ public class GeniusSDKWrapper : MonoBehaviour
     [DllImport("GeniusSDK")]
 #endif
     private static extern GeniusNodeReturnValue GeniusSDKShutdown();
+
+    // Account management functions
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern IntPtr GeniusSDKGetAvailableAccounts();
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKAddAccountWithMnemonic(string mnemonic);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKSelectGeniusAccount(string publicAddress);
+
+#if UNITY_IOS
+    [DllImport("__Internal")]
+#else
+    [DllImport("GeniusSDK")]
+#endif
+    private static extern GeniusNodeReturnValue GeniusSDKSetPayoutAddress(string publicAddress);
 
     // Balance and price functions
 #if UNITY_IOS
@@ -295,6 +375,18 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     // Instance management
     private bool isReady = false;
+    private bool isInitializing = false;
+
+    // True as soon as GeniusSDKInit has returned an init path -- i.e. the native node object
+    // exists, and the account with it. This is NOT the same thing as isReady, which only flips
+    // at 100%.
+    //
+    // The distinction matters. GetInitializationStatus tracks node bring-up, most of which is
+    // blockchain sync, and a node that cannot reach a full node parks partway through it
+    // indefinitely. Calls that only need an account must not wait for a readiness that may
+    // never arrive.
+    private bool isInitialized = false;
+
     private bool isShutdown = false;
     private static bool androidKeyStoreInitialized = false;
     [SerializeField] private string address = "0xcatcatcat";
@@ -409,7 +501,6 @@ public class GeniusSDKWrapper : MonoBehaviour
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
-            StartCoroutine(InitGeniusSDK());
         }
         else
         {
@@ -422,23 +513,47 @@ public class GeniusSDKWrapper : MonoBehaviour
         return instance == this;
     }
 
-    private IEnumerator InitGeniusSDK()
+    private class NativeInitResult
     {
+        public IntPtr resultPtr;
+        public string errorMessage;
+    }
+
+    private IEnumerator InitGeniusSDK(string basePath, string devConfigJson, string mnemonic)
+    {
+        if (isReady)
+        {
+            yield break;
+        }
+
+        if (isInitializing)
+        {
+            UnityEngine.Debug.Log("Genius SDK initialization is already running.");
+            yield break;
+        }
+
+        isInitializing = true;
         UnityEngine.Debug.Log("Initializing Genius SDK");
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (!InitializeAndroidKeyStore())
         {
+            isInitializing = false;
             yield break;
         }
 #endif
-        StringBuilder pathBuilder = new StringBuilder(UnityEngine.Application.persistentDataPath + "/", 1024);
-        string destinationPath = Path.Combine(UnityEngine.Application.persistentDataPath, "dev_config.json");
-        string networkConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "network_config.json");
-        string crdtConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "crdt_config.json");
-        string logConfigPath = Path.Combine(UnityEngine.Application.persistentDataPath, "log_config.json");
+        string sgnsConfigPath = Path.Combine(basePath, "sgns_config.json");
+        string networkConfigPath = Path.Combine(basePath, "network_config.json");
+        string crdtConfigPath = Path.Combine(basePath, "crdt_config.json");
+        string logConfigPath = Path.Combine(basePath, "log_config.json");
 
-        UnityEngine.Debug.Log("dev_config.json not found. Creating a new one...");
-        string jsonData = $@"{{
+        string sgnsJsonData = BuildSgnsConfigJson();
+        string networkJsonData = BuildNetworkConfigJson();
+        string crdtJsonData = BuildCrdtConfigJson();
+        string logJsonData = BuildLogConfigJson();
+
+        UnityEngine.Debug.Log("Starting Genius SDK native init in background.");
+
+        string inlineDevConfig = $@"{{
     ""Address"": ""{address}"",
     ""Cut"": ""{cut}"",
     ""TokenValue"": ""{tokenValue:F5}"",
@@ -446,79 +561,106 @@ public class GeniusSDKWrapper : MonoBehaviour
     ""WriteDirectory"": """"
 }}";
 
-        try
+        string configJson = string.IsNullOrEmpty(devConfigJson) ? inlineDevConfig : devConfigJson;
+        Task<NativeInitResult> initTask = Task.Run(() => RunNativeInit(
+            basePath,
+            configJson,
+            mnemonic,
+            sgnsConfigPath,
+            sgnsJsonData,
+            networkConfigPath,
+            networkJsonData,
+            crdtConfigPath,
+            crdtJsonData,
+            logConfigPath,
+            logJsonData));
+
+        while (!initTask.IsCompleted)
         {
-            File.WriteAllText(destinationPath, jsonData);
-            UnityEngine.Debug.Log("dev_config.json created successfully.");
+            yield return null;
         }
-        catch (Exception ex)
+
+        if (initTask.IsFaulted)
         {
-            UnityEngine.Debug.LogError($"Error writing dev_config.json: {ex.Message}");
+            isInitializing = false;
+            UnityEngine.Debug.LogError("GeniusSDK native init task failed: " + initTask.Exception);
             yield break;
         }
 
-        string networkJsonData = BuildNetworkConfigJson();
+        NativeInitResult initResult = initTask.Result;
+        if (!string.IsNullOrEmpty(initResult.errorMessage))
+        {
+            isInitializing = false;
+            UnityEngine.Debug.LogError(initResult.errorMessage);
+            yield break;
+        }
+
+        if (initResult.resultPtr == IntPtr.Zero)
+        {
+            isInitializing = false;
+            UnityEngine.Debug.LogError("GeniusSDK init returned null — initialization failed");
+            yield break;
+        }
+
+        string initPath = Marshal.PtrToStringAnsi(initResult.resultPtr);
+        UnityEngine.Debug.Log($"GeniusSDK init returned: {initPath}");
+
+        // The node object exists from here on, and the account with it. Everything below is
+        // bring-up progress, not existence.
+        isInitialized = true;
+
+        while (!isReady)
+        {
+            GeniusStatusInfo status = GeniusSDKGetInitializationStatus();
+            if (status.percentage >= 1.0f)
+            {
+                isReady = true;
+            }
+            if (status.message != IntPtr.Zero)
+            {
+                string msg = Marshal.PtrToStringAnsi(status.message);
+                UnityEngine.Debug.Log("SDK Init: " + msg + " (" + (status.percentage * 100f) + "%)");
+                GeniusSDKFree(status.message);
+            }
+            if (!isReady)
+            {
+                yield return new WaitForSecondsRealtime(0.5f);
+            }
+        }
+
+        isInitializing = false;
+    }
+
+    private static NativeInitResult RunNativeInit(
+        string basePath,
+        string configJson,
+        string mnemonic,
+        string sgnsConfigPath,
+        string sgnsJsonData,
+        string networkConfigPath,
+        string networkJsonData,
+        string crdtConfigPath,
+        string crdtJsonData,
+        string logConfigPath,
+        string logJsonData)
+    {
         try
         {
+            File.WriteAllText(sgnsConfigPath, sgnsJsonData);
             File.WriteAllText(networkConfigPath, networkJsonData);
-            UnityEngine.Debug.Log("network_config.json created successfully.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error writing network_config.json: {ex.Message}");
-            yield break;
-        }
-
-        string crdtJsonData = BuildCrdtConfigJson();
-        try
-        {
             File.WriteAllText(crdtConfigPath, crdtJsonData);
-            UnityEngine.Debug.Log("crdt_config.json created successfully.");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error writing crdt_config.json: {ex.Message}");
-            yield break;
-        }
-
-        string logJsonData = BuildLogConfigJson();
-        try
-        {
             File.WriteAllText(logConfigPath, logJsonData);
-            UnityEngine.Debug.Log("log_config.json created successfully.");
+
+            IntPtr resultPtr = string.IsNullOrEmpty(mnemonic)
+                ? GeniusSDKInit(basePath, configJson)
+                : GeniusSDKInitWithMnemonic(basePath, configJson, mnemonic);
+
+            return new NativeInitResult { resultPtr = resultPtr };
         }
         catch (Exception ex)
         {
-            UnityEngine.Debug.LogError($"Error writing log_config.json: {ex.Message}");
-            yield break;
+            return new NativeInitResult { errorMessage = "GeniusSDK native init failed: " + ex.Message };
         }
-
-        byte[] keyBytes = new byte[32];
-        using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
-        {
-            rng.GetBytes(keyBytes);
-        }
-        StringBuilder keyBuilder = new StringBuilder(64);
-        foreach (byte b in keyBytes)
-        {
-            keyBuilder.Append(b.ToString("x2"));
-        }
-        StringBuilder key = new StringBuilder(keyBuilder.ToString(), 1024);
-
-        UnityEngine.Debug.Log("Try to init SDK");
-        try
-        {
-            IntPtr resultPtr = GeniusSDKInitSecure(pathBuilder, jsonData, key, true, true, 42001, false);
-            string result = Marshal.PtrToStringAnsi(resultPtr);
-            UnityEngine.Debug.Log($"GeniusSDKInit returned: {result}");
-            isReady = true;
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.LogError($"Error initializing Genius SDK: {ex.Message}");
-        }
-
-        yield return null;
     }
 
     private static string EscapeJsonString(string input)
@@ -538,20 +680,22 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     private string BuildNetworkConfigJson()
     {
+        var builder = new StringBuilder(256);
+        builder.AppendLine("{");
+        builder.AppendLine("  \"port_seed\": 42001,");
+        builder.AppendLine("  \"auto_dht\": true");
+        builder.AppendLine("}");
+
+        return builder.ToString();
+    }
+
+    private string BuildSgnsConfigJson()
+    {
         var builder = new StringBuilder(1024);
         builder.AppendLine("{");
-        builder.AppendLine($"  \"pubsub_port\": \"{EscapeJsonString(pubsubPort)}\",");
-        builder.AppendLine($"  \"pubsub_bind_address\": \"{EscapeJsonString(pubsubBindAddress)}\",");
-        builder.AppendLine("  \"bootstrap_addresses\": [");
-
-        for (int i = 0; i < bootstrapAddresses.Length; i++)
-        {
-            string entry = EscapeJsonString(bootstrapAddresses[i] ?? string.Empty);
-            string suffix = i < bootstrapAddresses.Length - 1 ? "," : string.Empty;
-            builder.AppendLine($"    \"{entry}\"{suffix}");
-        }
-
-        builder.AppendLine("  ],");
+        builder.AppendLine("  \"is_processor\": true,");
+        builder.AppendLine("  \"node_type\": \"Light\",");
+        builder.AppendLine($"  \"authorized_full_node\": \"{EscapeJsonString(authorizedFullNode)}\",");
         builder.AppendLine("  \"bootstrap_fullnodes\": [");
 
         for (int i = 0; i < bootstrapFullnodes.Length; i++)
@@ -561,11 +705,7 @@ public class GeniusSDKWrapper : MonoBehaviour
             builder.AppendLine($"    \"{entry}\"{suffix}");
         }
 
-        builder.AppendLine("  ],");
-        builder.AppendLine($"  \"upnp_enabled\": {upnpEnabled.ToString().ToLowerInvariant()},");
-        builder.AppendLine($"  \"high_water\": {highWater},");
-        builder.AppendLine($"  \"low_water\": {lowWater},");
-        builder.AppendLine($"  \"authorized_full_node\": \"{EscapeJsonString(authorizedFullNode)}\"");
+        builder.AppendLine("  ]");
         builder.AppendLine("}");
 
         return builder.ToString();
@@ -630,29 +770,49 @@ public class GeniusSDKWrapper : MonoBehaviour
         get { return tokenID; }
         set { tokenID = value; }
     }
-    // Initialization wrappers
-    public string InitSDK(string basePath, string privateKey, bool autoDht, bool process, ushort basePort, bool is_full_node)
+
+    /// <summary>
+    /// Starts the SDK, at most once for the lifetime of the process.
+    ///
+    /// The once-only rule lives HERE rather than in each caller. This wrapper is a
+    /// DontDestroyOnLoad singleton, but its callers are ordinary scene components that are
+    /// recreated on every scene load, so each of them believes it is the first -- and a second
+    /// GeniusSDKInit against a live node is not something to discover the hard way.
+    ///
+    /// Returns immediately: the blocking native call runs on a thread-pool thread and the
+    /// coroutine polls the Task, so the game keeps rendering throughout.
+    /// </summary>
+    public void BeginInitialize(string basePath)
     {
-#if UNITY_ANDROID && !UNITY_EDITOR
-        if (!InitializeAndroidKeyStore())
-            return "Android KeyStore initialization failed";
-#endif
-        var pathBuilder = new StringBuilder(basePath, 1024);
-        var keyBuilder = new StringBuilder(privateKey, 1024);
-        IntPtr resultPtr = GeniusSDKInit(pathBuilder, keyBuilder, autoDht, process, basePort, is_full_node);
-        return Marshal.PtrToStringAnsi(resultPtr);
+        if (isInitialized || isInitializing)
+        {
+            return;
+        }
+
+        StartCoroutine(InitGeniusSDK(basePath, null, null));
     }
 
-    public string InitMinimalSDK(string basePath, string privateKey, ushort basePort)
+    public void BeginInitializeWithMnemonic(string basePath, string mnemonic)
     {
-#if UNITY_ANDROID && !UNITY_EDITOR
-        if (!InitializeAndroidKeyStore())
-            return "Android KeyStore initialization failed";
-#endif
-        var pathBuilder = new StringBuilder(basePath, 1024);
-        var keyBuilder = new StringBuilder(privateKey, 1024);
-        IntPtr resultPtr = GeniusSDKInitMinimal(pathBuilder, keyBuilder, basePort);
-        return Marshal.PtrToStringAnsi(resultPtr);
+        StartCoroutine(InitGeniusSDK(basePath, null, mnemonic));
+    }
+
+    public void Free(IntPtr ptr)
+    {
+        if (ptr != IntPtr.Zero)
+        {
+            GeniusSDKFree(ptr);
+        }
+    }
+
+    public void LoadLogConfig()
+    {
+        GeniusSDKLoadLogConfig();
+    }
+
+    public GeniusStatusInfo GetInitializationStatus()
+    {
+        return GeniusSDKGetInitializationStatus();
     }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -687,6 +847,31 @@ public class GeniusSDKWrapper : MonoBehaviour
         var result = GeniusSDKShutdown();
         isShutdown = true;
         return result;
+    }
+
+    public string GetAvailableAccounts()
+    {
+        IntPtr resultPtr = GeniusSDKGetAvailableAccounts();
+        if (resultPtr == IntPtr.Zero)
+        {
+            return null;
+        }
+        return Marshal.PtrToStringAnsi(resultPtr);
+    }
+
+    public GeniusNodeReturnValue AddAccountWithMnemonic(string mnemonic)
+    {
+        return GeniusSDKAddAccountWithMnemonic(mnemonic);
+    }
+
+    public GeniusNodeReturnValue SelectGeniusAccount(string publicAddress)
+    {
+        return GeniusSDKSelectGeniusAccount(publicAddress);
+    }
+
+    public GeniusNodeReturnValue SetPayoutAddress(string publicAddress)
+    {
+        return GeniusSDKSetPayoutAddress(publicAddress);
     }
 
     // Balance and price wrappers
@@ -872,6 +1057,42 @@ public class GeniusSDKWrapper : MonoBehaviour
 
     // Properties
     public bool IsReady => isReady;
+
+    /// <summary>
+    /// True once GeniusSDKInit has returned, i.e. the node and its account exist. Reached long
+    /// before <see cref="IsReady"/>, which requires 100% and therefore a synced blockchain.
+    /// </summary>
+    public bool IsInitialized => isInitialized;
+
+    /// <summary>
+    /// True once the node is past database migration and database init — the point at which
+    /// account-scoped calls such as SetPayoutAddress become SAFE TO CALL AT ALL.
+    ///
+    /// This is not a convenience. Calling SetPayoutAddress while the node is in
+    /// MIGRATING_DATABASE returns GENIUS_NODE_RET_OK and then kills the process with an access
+    /// violation on one of the SDK's own background threads, seconds later. The return code
+    /// gives no warning whatsoever. Established by driving the shipped DLL directly:
+    ///
+    ///   state 1 MIGRATING_DATABASE      (10%)  -> returns OK, then CRASHES within 5s
+    ///   state 3 INITIALIZING_PROCESSING (52%)  -> returns OK, node stays healthy
+    ///   never called (control)                 -> healthy
+    ///
+    /// Gate on this, NOT on the return code and NOT on IsReady: a node that cannot reach a
+    /// full node parks at INITIALIZING_PROCESSING and may never reach READY, so waiting for
+    /// readiness makes these calls impossible in exactly the environment we develop in.
+    /// </summary>
+    public bool IsSafeForAccountCalls
+    {
+        get
+        {
+            if (!isInitialized)
+            {
+                return false;
+            }
+
+            return GeniusSDKGetNodeState() >= GeniusNodeState.GENIUS_NODE_INITIALIZING_PROCESSING;
+        }
+    }
 
     // Cleanup
     void OnApplicationQuit()
